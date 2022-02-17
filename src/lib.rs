@@ -22,27 +22,6 @@
 #![deny(clippy::mod_module_files)]
 #![doc = include_str!("../README.md")]
 
-use thiserror::Error;
-
-use tracing::instrument;
-
-/// Error type for ldap_types
-#[derive(Debug, Error)]
-pub enum Error {
-    /// This variant is just here as a placeholder to show the syntax
-    #[error("error type not implemented yet")]
-    NotImplementedError,
-}
-
-/// Just a function to illustrate use of instrument and Error
-#[instrument]
-async fn example_fun() -> Result<(), Error> {
-    tracing::debug!("{:#?}", "Hello, World!");
-    Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    //use super::*;
-    //use pretty_assertions::{assert_eq, assert_ne};
-}
+pub mod basic;
+pub mod filter;
+pub mod schema;

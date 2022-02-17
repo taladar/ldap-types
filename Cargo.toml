@@ -16,16 +16,33 @@ debug = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["chumsky", "itertools"]
+
 [dependencies]
 
-[dependencies.thiserror]
-version = "~1.0"
+[dependencies.oid]
+version = "0.2.1"
 
-[dependencies.futures]
-version = "~0.3"
+[dependencies.enum-as-inner]
+version = "0.3.3"
 
-[dependencies.tracing]
-version = "~0.1"
+[dependencies.is-macro]
+version = "0.1.9"
+
+[dependencies.chumsky]
+version = "0.7.0"
+optional = true
+
+[dependencies.itertools]
+version = "0.10.1"
+optional = true
+
+[dependencies.hex]
+version = "0.4.3"
+
+[dependencies.lazy_static]
+version = "1.4.0"
 
 [dev-dependencies.pretty_assertions]
 version = "~1.0"
