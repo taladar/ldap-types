@@ -6,8 +6,9 @@ license = "MIT/Apache-2.0"
 version = "0.1.0"
 authors = ["Matthias Hörmann <mhoermann@gmail.com>"]
 edition = "2021"
-publish = false
-
+repository = "https://github.com/taladar/ldap-types"
+keywords = [ "ldap", "schema", "filter" ]
+categories = [ "data-structures", "parsing" ]
 exclude = [ ".env", "tarpaulin-report.html", "tarpaulin-report.json" ]
 
 [profile.release]
