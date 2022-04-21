@@ -18,8 +18,12 @@ use crate::basic::{
     keystring_or_oid_parser, keystring_parser, oid_parser, quoted_keystring_parser,
 };
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// stores the parameter values that can appear behind a tag in an LDAP schema entry
 #[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LDAPSchemaTagValue {
     /// the tag has no value
     Standalone,
@@ -45,6 +49,7 @@ pub enum LDAPSchemaTagValue {
 
 /// a single tag in an LDAP schema entry
 #[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchemaTag {
     /// the name of the tag
     tag_name: String,
@@ -56,6 +61,7 @@ pub struct LDAPSchemaTag {
 /// this allows code reuse in the parser
 #[cfg(feature = "chumsky")]
 #[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LDAPSchemaTagType {
     /// the tag is expected to not have a value
     Standalone,
@@ -82,6 +88,7 @@ pub enum LDAPSchemaTagType {
 /// describes an expected tag in an LDAP schema entry
 #[cfg(feature = "chumsky")]
 #[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchemaTagDescriptor {
     /// the tag name of the expected tag
     pub tag_name: String,
@@ -233,6 +240,7 @@ pub fn optional_tag(tag_name: &str, tags: &[LDAPSchemaTag]) -> Option<LDAPSchema
 
 /// this describes an LDAP syntax schema entry
 #[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSyntax {
     /// the OID of the syntax
     pub oid: ObjectIdentifier,
@@ -303,6 +311,7 @@ pub fn ldap_syntax_parser() -> impl Parser<char, LDAPSyntax, Error = Simple<char
 ///
 /// <https://ldapwiki.com/wiki/MatchingRule>
 #[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MatchingRule {
     /// the matching rule's OID
     pub oid: ObjectIdentifier,
@@ -357,6 +366,7 @@ pub fn matching_rule_parser() -> impl Parser<char, MatchingRule, Error = Simple<
 ///
 /// <https://ldapwiki.com/wiki/MatchingRuleUse>
 #[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MatchingRuleUse {
     /// the OID of the matching rule this applies to
     pub oid: ObjectIdentifier,
@@ -411,6 +421,7 @@ pub fn matching_rule_use_parser() -> impl Parser<char, MatchingRuleUse, Error = 
 ///
 /// <https://ldapwiki.com/wiki/AttributeTypes>
 #[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AttributeType {
     /// the OID of the attribute type
     pub oid: ObjectIdentifier,
@@ -565,6 +576,7 @@ pub fn attribute_type_parser() -> impl Parser<char, AttributeType, Error = Simpl
 
 /// type of LDAP object class
 #[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectClassType {
     /// this can not be used as an actual object class and is purely used
     /// as a parent for the other types
@@ -580,6 +592,7 @@ pub enum ObjectClassType {
 
 /// an LDAP schema objectclass entry
 #[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ObjectClass {
     /// the OID of the object class
     pub oid: ObjectIdentifier,
@@ -688,6 +701,7 @@ pub fn object_class_parser() -> impl Parser<char, ObjectClass, Error = Simple<ch
 
 /// an entire LDAP schema for an LDAP server
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchema {
     /// the supported LDAP syntaxes
     pub ldap_syntaxes: Vec<LDAPSyntax>,

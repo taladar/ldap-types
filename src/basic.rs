@@ -11,12 +11,16 @@ use chumsky::{prelude::*, text::digits};
 #[cfg(feature = "chumsky")]
 use itertools::Itertools;
 
+#[cfg(feature = "serde")]
+use serde::{de::SeqAccess, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+
 /// represents the object to request from an LDAP server to figure out which
 /// features,... it supports
 ///
 /// <https://ldapwiki.com/wiki/RootDSE>
 ///
 /// <https://ldapwiki.com/wiki/LDAP%20Extensions%20and%20Controls%20Listing>
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RootDSE {
     /// version of the LDAP protocol the server supports
     pub supported_ldap_version: String,
@@ -106,6 +110,7 @@ pub fn oid_parser() -> impl Parser<char, ObjectIdentifier, Error = Simple<char>>
 /// a key string is a string limited to the characters that are safe to use
 /// in a key context, e.g. a relative distinguished name, without encoding
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyString(pub String);
 
 impl std::fmt::Display for KeyString {
@@ -154,10 +159,13 @@ pub fn quoted_keystring_parser() -> impl Parser<char, KeyString, Error = Simple<
 /// LDAP allows the use of either a keystring or an OID in many locations,
 /// e.g. in DNs or in the schema
 #[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyStringOrOID {
     /// this represents a [KeyString]
+    #[cfg_attr(feature = "serde", serde(rename = "key_string"))]
     KeyString(KeyString),
     /// this reprents an [ObjectIdentifier]
+    #[cfg_attr(feature = "serde", serde(rename = "oid"))]
     OID(ObjectIdentifier),
 }
 
@@ -222,6 +230,7 @@ pub fn keystring_or_oid_parser() -> impl Parser<char, KeyStringOrOID, Error = Si
 /// in some locations LDAP allows OIDs with an optional length specifier
 /// to describe attribute types with a length limit
 #[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OIDWithLength {
     /// the [ObjectIdentifier]
     pub oid: ObjectIdentifier,
@@ -245,9 +254,83 @@ impl std::fmt::Debug for OIDWithLength {
 ///
 /// <https://ldapwiki.com/wiki/Relative%20Distinguished%20Name>
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RelativeDistinguishedName {
     /// the attributes of the RDN
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_rdn", deserialize_with = "deserialize_rdn")
+    )]
     pub attributes: Vec<(KeyStringOrOID, Vec<u8>)>,
+}
+
+/// serialize RDN attribute values as string if possible
+/// falling back to array of numbers of necessary
+#[cfg(feature = "serde")]
+pub fn serialize_rdn<S>(xs: &[(KeyStringOrOID, Vec<u8>)], s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = s.serialize_seq(Some(xs.len()))?;
+    for e @ (k, v) in xs.iter() {
+        if let Ok(s) = std::str::from_utf8(v) {
+            seq.serialize_element(&(k, s))?;
+        } else {
+            seq.serialize_element(e)?;
+        }
+    }
+    seq.end()
+}
+
+/// parses an RDN with attribute values being represented either as a string or an array of integers
+#[cfg(feature = "serde")]
+pub fn deserialize_rdn<'de, D>(d: D) -> Result<Vec<(KeyStringOrOID, Vec<u8>)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    /// untagged union to allow deserializing attribute values as either string or bytes
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrBytes {
+        /// string attribute value
+        String(String),
+        /// bytes attribute value
+        Bytes(Vec<u8>),
+    }
+
+    /// visitor to deserialize RDNs in deserialize_rdn
+    struct RDNVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for RDNVisitor {
+        type Value = Vec<(KeyStringOrOID, StringOrBytes)>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "an array of tuples of attribute name and attribute value (either a string or a sequence of integers)")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut result = Vec::new();
+            while let Some(e) = seq.next_element()? {
+                result.push(e);
+            }
+            Ok(result)
+        }
+    }
+
+    let parse_result = d.deserialize_seq(RDNVisitor)?;
+    let mut results = Vec::new();
+    for (ref k, ref v) in parse_result {
+        match v {
+            StringOrBytes::String(s) => {
+                results.push((k.to_owned(), s.as_bytes().to_vec()));
+            }
+            StringOrBytes::Bytes(b) => results.push((k.to_owned(), b.to_vec())),
+        }
+    }
+    Ok(results)
 }
 
 /// parses a series of hex-encoded bytes (always even number of hex digits)
@@ -302,6 +385,7 @@ pub fn rdn_parser() -> impl Parser<char, RelativeDistinguishedName, Error = Simp
 ///
 /// <https://ldapwiki.com/wiki/Distinguished%20Names>
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DistinguishedName {
     /// the RDN components of the DN
     pub rdns: Vec<RelativeDistinguishedName>,
@@ -336,6 +420,7 @@ pub fn dn_parser() -> impl Parser<char, DistinguishedName, Error = Simple<char>>
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_oid() {
@@ -460,5 +545,161 @@ mod test {
             }),
             std::cmp::Ordering::Less
         )
+    }
+
+    #[test]
+    fn test_serialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
+        let oid: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
+        let result = serde_json::to_string(&oid)?;
+        assert_eq!(result, "\"1.2.3.4\"".to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
+        let result: ObjectIdentifier = serde_json::from_str("\"1.2.3.4\"")?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_serialize_json_keystring() -> Result<(), Box<dyn std::error::Error>> {
+        let ks: KeyString = KeyString("foo".to_string());
+        let result = serde_json::to_string(&ks)?;
+        assert_eq!(result, "\"foo\"".to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_keystring() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: KeyString = KeyString("foo".to_string());
+        let result: KeyString = serde_json::from_str("\"foo\"")?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_serialize_json_keystring_or_oid_keystring() -> Result<(), Box<dyn std::error::Error>> {
+        let ks: KeyStringOrOID = KeyStringOrOID::KeyString(KeyString("foo".to_string()));
+        let result = serde_json::to_string(&ks)?;
+        assert_eq!(result, "{\"key_string\":\"foo\"}".to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_keystring_or_oid_keystring() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let expected: KeyStringOrOID = KeyStringOrOID::KeyString(KeyString("foo".to_string()));
+        let result: KeyStringOrOID = serde_json::from_str("{\"key_string\":\"foo\"}")?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_serialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
+        let ks: KeyStringOrOID = KeyStringOrOID::OID("1.2.3.4".to_string().try_into().unwrap());
+        let result = serde_json::to_string(&ks)?;
+        assert_eq!(result, "{\"oid\":\"1.2.3.4\"}".to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: KeyStringOrOID =
+            KeyStringOrOID::OID("1.2.3.4".to_string().try_into().unwrap());
+        let result: KeyStringOrOID = serde_json::from_str("{\"oid\":\"1.2.3.4\"}")?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_serialize_json_rdn() -> Result<(), Box<dyn std::error::Error>> {
+        let rdn: RelativeDistinguishedName = RelativeDistinguishedName {
+            attributes: vec![(
+                KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                "Foobar".as_bytes().to_vec(),
+            )],
+        };
+        let result = serde_json::to_string(&rdn)?;
+        assert_eq!(
+            result,
+            "{\"attributes\":[[{\"key_string\":\"cn\"},\"Foobar\"]]}".to_string()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_rdn_string() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: RelativeDistinguishedName = RelativeDistinguishedName {
+            attributes: vec![(
+                KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                "Foobar".as_bytes().to_vec(),
+            )],
+        };
+        let result: RelativeDistinguishedName =
+            serde_json::from_str("{\"attributes\":[[{\"key_string\":\"cn\"},\"Foobar\"]]}")?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_rdn_integers() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: RelativeDistinguishedName = RelativeDistinguishedName {
+            attributes: vec![(
+                KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                "Foobar".as_bytes().to_vec(),
+            )],
+        };
+        let result: RelativeDistinguishedName = serde_json::from_str(
+            "{\"attributes\":[[{\"key_string\":\"cn\"},[70, 111, 111, 98, 97, 114]]]}",
+        )?;
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_serialize_json_dn() -> Result<(), Box<dyn std::error::Error>> {
+        let dn: DistinguishedName = DistinguishedName {
+            rdns: vec![RelativeDistinguishedName {
+                attributes: vec![
+                    (
+                        KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                        "Foo,bar".as_bytes().to_vec(),
+                    ),
+                    (
+                        KeyStringOrOID::KeyString(KeyString("uid".to_string())),
+                        "foobar".as_bytes().to_vec(),
+                    ),
+                ],
+            }],
+        };
+        let result = serde_json::to_string(&dn)?;
+        assert_eq!(
+            result,
+            "{\"rdns\":[{\"attributes\":[[{\"key_string\":\"cn\"},\"Foo,bar\"],[{\"key_string\":\"uid\"},\"foobar\"]]}]}".to_string()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_dn() -> Result<(), Box<dyn std::error::Error>> {
+        let expected: DistinguishedName = DistinguishedName {
+            rdns: vec![RelativeDistinguishedName {
+                attributes: vec![
+                    (
+                        KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                        "Foo,bar".as_bytes().to_vec(),
+                    ),
+                    (
+                        KeyStringOrOID::KeyString(KeyString("uid".to_string())),
+                        "foobar".as_bytes().to_vec(),
+                    ),
+                ],
+            }],
+        };
+        let result : DistinguishedName = serde_json::from_str("{\"rdns\":[{\"attributes\":[[{\"key_string\":\"cn\"},\"Foo,bar\"],[{\"key_string\":\"uid\"},\"foobar\"]]}]}")?;
+        assert_eq!(result, expected);
+        Ok(())
     }
 }

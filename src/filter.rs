@@ -16,12 +16,16 @@ use crate::basic::OIDWithLength;
 #[cfg(feature = "chumsky")]
 use crate::schema::LDAPSchema;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// represents an LDAP search filter
 ///
 /// this crate does not support extended matches at this time
 ///
 /// <https://datatracker.ietf.org/doc/html/rfc2254#section-4>
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LDAPSearchFilter {
     /// a boolean and operation applied to all the sub-filters
     And(Vec<LDAPSearchFilter>),
