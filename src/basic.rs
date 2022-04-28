@@ -1,4 +1,10 @@
 //! Contains al the basic LDAP types
+use std::{
+    convert::TryFrom,
+    hash::{Hash, Hasher},
+};
+
+use educe::Educe;
 use oid::ObjectIdentifier;
 
 use is_macro::Is;
@@ -139,6 +145,34 @@ impl KeyString {
             _ => false,
         }
     }
+
+    /// converts the KeyString to lowercase
+    pub fn to_lowercase(&self) -> KeyString {
+        let KeyString(s) = self;
+        KeyString(s.to_lowercase())
+    }
+}
+
+impl TryFrom<KeyStringOrOID> for KeyString {
+    type Error = ();
+
+    fn try_from(value: KeyStringOrOID) -> Result<Self, Self::Error> {
+        match value {
+            KeyStringOrOID::KeyString(ks) => Ok(ks),
+            KeyStringOrOID::OID(_) => Err(()),
+        }
+    }
+}
+
+impl TryFrom<&KeyStringOrOID> for KeyString {
+    type Error = ();
+
+    fn try_from(value: &KeyStringOrOID) -> Result<Self, Self::Error> {
+        match value {
+            KeyStringOrOID::KeyString(ks) => Ok(ks.to_owned()),
+            KeyStringOrOID::OID(_) => Err(()),
+        }
+    }
 }
 
 /// parses a [KeyString]
@@ -156,17 +190,24 @@ pub fn quoted_keystring_parser() -> impl Parser<char, KeyString, Error = Simple<
     keystring_parser().delimited_by('\'', '\'')
 }
 
+/// hash function for ObjectIdentifier based on string representation
+/// since ObjectIdentifier does not implement Hash
+pub fn hash_oid<H: Hasher>(s: &ObjectIdentifier, state: &mut H) {
+    Hash::hash(&format!("{s:?}"), state);
+}
+
 /// LDAP allows the use of either a keystring or an OID in many locations,
 /// e.g. in DNs or in the schema
-#[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[derive(Clone, Debug, Is, EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub enum KeyStringOrOID {
     /// this represents a [KeyString]
     #[cfg_attr(feature = "serde", serde(rename = "key_string"))]
     KeyString(KeyString),
     /// this reprents an [ObjectIdentifier]
     #[cfg_attr(feature = "serde", serde(rename = "oid"))]
-    OID(ObjectIdentifier),
+    OID(#[educe(Hash(method = "hash_oid"))] ObjectIdentifier),
 }
 
 impl PartialOrd for KeyStringOrOID {
@@ -219,6 +260,82 @@ impl std::fmt::Display for KeyStringOrOID {
     }
 }
 
+#[cfg(feature = "chumsky")]
+impl TryFrom<&str> for KeyStringOrOID {
+    type Error = Vec<Simple<char>>;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        keystring_or_oid_parser().parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<String> for KeyStringOrOID {
+    type Error = Vec<Simple<char>>;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        keystring_or_oid_parser().parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<&String> for KeyStringOrOID {
+    type Error = Vec<Simple<char>>;
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        keystring_or_oid_parser().parse(value.to_string())
+    }
+}
+
+impl From<&KeyStringOrOID> for KeyStringOrOID {
+    fn from(value: &KeyStringOrOID) -> Self {
+        value.to_owned()
+    }
+}
+
+impl From<KeyString> for KeyStringOrOID {
+    fn from(value: KeyString) -> Self {
+        KeyStringOrOID::KeyString(value)
+    }
+}
+
+impl From<&KeyString> for KeyStringOrOID {
+    fn from(value: &KeyString) -> Self {
+        KeyStringOrOID::KeyString(value.to_owned())
+    }
+}
+
+impl From<ObjectIdentifier> for KeyStringOrOID {
+    fn from(value: ObjectIdentifier) -> Self {
+        KeyStringOrOID::OID(value)
+    }
+}
+
+impl From<&ObjectIdentifier> for KeyStringOrOID {
+    fn from(value: &ObjectIdentifier) -> Self {
+        KeyStringOrOID::OID(value.to_owned())
+    }
+}
+
+impl TryFrom<KeyStringOrOID> for ObjectIdentifier {
+    type Error = ();
+
+    fn try_from(value: KeyStringOrOID) -> Result<Self, Self::Error> {
+        match value {
+            KeyStringOrOID::OID(oid) => Ok(oid),
+            KeyStringOrOID::KeyString(_) => Err(()),
+        }
+    }
+}
+
+impl TryFrom<&KeyStringOrOID> for ObjectIdentifier {
+    type Error = ();
+
+    fn try_from(value: &KeyStringOrOID) -> Result<Self, Self::Error> {
+        match value {
+            KeyStringOrOID::OID(oid) => Ok(oid.to_owned()),
+            KeyStringOrOID::KeyString(_) => Err(()),
+        }
+    }
+}
+
 /// parses either a [KeyString] or an [ObjectIdentifier]
 #[cfg(feature = "chumsky")]
 pub fn keystring_or_oid_parser() -> impl Parser<char, KeyStringOrOID, Error = Simple<char>> {
@@ -229,13 +346,27 @@ pub fn keystring_or_oid_parser() -> impl Parser<char, KeyStringOrOID, Error = Si
 
 /// in some locations LDAP allows OIDs with an optional length specifier
 /// to describe attribute types with a length limit
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct OIDWithLength {
     /// the [ObjectIdentifier]
+    #[educe(Hash(method = "hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the optional maximum length of the value
     pub length: Option<usize>,
+}
+
+impl From<OIDWithLength> for ObjectIdentifier {
+    fn from(value: OIDWithLength) -> Self {
+        value.oid
+    }
+}
+
+impl From<&OIDWithLength> for ObjectIdentifier {
+    fn from(value: &OIDWithLength) -> Self {
+        value.oid.to_owned()
+    }
 }
 
 impl std::fmt::Debug for OIDWithLength {
@@ -253,7 +384,7 @@ impl std::fmt::Debug for OIDWithLength {
 /// but it can also be a plus sign separated string of several such pairs
 ///
 /// <https://ldapwiki.com/wiki/Relative%20Distinguished%20Name>
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RelativeDistinguishedName {
     /// the attributes of the RDN
@@ -384,7 +515,7 @@ pub fn rdn_parser() -> impl Parser<char, RelativeDistinguishedName, Error = Simp
 /// components
 ///
 /// <https://ldapwiki.com/wiki/Distinguished%20Names>
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DistinguishedName {
     /// the RDN components of the DN

@@ -2,11 +2,17 @@
 //!
 //! LDAP Schema is defined in RFC2252 <https://www.rfc-editor.org/rfc/rfc2252.txt>
 
+use std::collections::HashSet;
+
 #[cfg(feature = "chumsky")]
 use chumsky::{prelude::*, text::digits};
+use educe::Educe;
 use enum_as_inner::EnumAsInner;
 use is_macro::Is;
 use oid::ObjectIdentifier;
+
+#[cfg(feature = "chumsky")]
+use itertools::Itertools;
 
 #[cfg(feature = "chumsky")]
 use lazy_static::lazy_static;
@@ -22,13 +28,14 @@ use crate::basic::{
 use serde::{Deserialize, Serialize};
 
 /// stores the parameter values that can appear behind a tag in an LDAP schema entry
-#[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[derive(Clone, Debug, Is, EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub enum LDAPSchemaTagValue {
     /// the tag has no value
     Standalone,
     /// the tag has an OID value
-    OID(ObjectIdentifier),
+    OID(#[educe(Hash(method = "crate::basic::hash_oid"))] ObjectIdentifier),
     /// the tag has an OID value with an optional length
     OIDWithLength(OIDWithLength),
     /// the tag has a string value
@@ -48,7 +55,7 @@ pub enum LDAPSchemaTagValue {
 }
 
 /// a single tag in an LDAP schema entry
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchemaTag {
     /// the name of the tag
@@ -60,7 +67,7 @@ pub struct LDAPSchemaTag {
 /// encodes the expected value type for a schema tag
 /// this allows code reuse in the parser
 #[cfg(feature = "chumsky")]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LDAPSchemaTagType {
     /// the tag is expected to not have a value
@@ -87,7 +94,7 @@ pub enum LDAPSchemaTagType {
 
 /// describes an expected tag in an LDAP schema entry
 #[cfg(feature = "chumsky")]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchemaTagDescriptor {
     /// the tag name of the expected tag
@@ -239,10 +246,12 @@ pub fn optional_tag(tag_name: &str, tags: &[LDAPSchemaTag]) -> Option<LDAPSchema
 }
 
 /// this describes an LDAP syntax schema entry
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct LDAPSyntax {
     /// the OID of the syntax
+    #[educe(Hash(method = "crate::basic::hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the human-readable description of the syntax
     pub desc: String,
@@ -310,10 +319,12 @@ pub fn ldap_syntax_parser() -> impl Parser<char, LDAPSyntax, Error = Simple<char
 /// a matching rule LDAP schema entry
 ///
 /// <https://ldapwiki.com/wiki/MatchingRule>
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct MatchingRule {
     /// the matching rule's OID
+    #[educe(Hash(method = "crate::basic::hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the matching rule's name
     pub name: Vec<KeyString>,
@@ -365,10 +376,12 @@ pub fn matching_rule_parser() -> impl Parser<char, MatchingRule, Error = Simple<
 /// parse a matching rule use LDAP schema entry
 ///
 /// <https://ldapwiki.com/wiki/MatchingRuleUse>
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct MatchingRuleUse {
     /// the OID of the matching rule this applies to
+    #[educe(Hash(method = "crate::basic::hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the name of the matching rule
     pub name: Vec<KeyString>,
@@ -420,10 +433,12 @@ pub fn matching_rule_use_parser() -> impl Parser<char, MatchingRuleUse, Error = 
 /// an attribute type LDAP schema entry
 ///
 /// <https://ldapwiki.com/wiki/AttributeTypes>
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct AttributeType {
     /// the OID of the attribute type
+    #[educe(Hash(method = "crate::basic::hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the name of the attribute type
     pub name: Vec<KeyString>,
@@ -575,7 +590,7 @@ pub fn attribute_type_parser() -> impl Parser<char, AttributeType, Error = Simpl
 }
 
 /// type of LDAP object class
-#[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner)]
+#[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectClassType {
     /// this can not be used as an actual object class and is purely used
@@ -591,10 +606,12 @@ pub enum ObjectClassType {
 }
 
 /// an LDAP schema objectclass entry
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[educe(PartialEq, Eq, Hash)]
 pub struct ObjectClass {
     /// the OID of the object class
+    #[educe(Hash(method = "crate::basic::hash_oid"))]
     pub oid: ObjectIdentifier,
     /// the name of the object class
     pub name: Vec<KeyString>,
@@ -700,7 +717,7 @@ pub fn object_class_parser() -> impl Parser<char, ObjectClass, Error = Simple<ch
 }
 
 /// an entire LDAP schema for an LDAP server
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPSchema {
     /// the supported LDAP syntaxes
@@ -720,16 +737,123 @@ pub struct LDAPSchema {
 }
 
 impl LDAPSchema {
+    /// returns the set of allowed attributes (either must or may) for an ObjectClass and all of its super-classes
+    pub fn allowed_attributes(
+        &self,
+        id: impl TryInto<KeyStringOrOID>,
+    ) -> Option<HashSet<&AttributeType>> {
+        if let Some(object_class) = self.find_object_class(id) {
+            let mut result = HashSet::new();
+            for attribute_name in object_class.must.iter().chain(object_class.may.iter()) {
+                if let Some(attribute) = self.find_attribute_type(attribute_name) {
+                    result.insert(attribute);
+                }
+            }
+            for sup in &object_class.sup {
+                if let Some(allowed_attributes) = self.allowed_attributes(sup) {
+                    result.extend(allowed_attributes);
+                }
+            }
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    /// returns the set of required attributes (must) for an ObjectClass and all of its super-classes
+    pub fn required_attributes(
+        &self,
+        id: impl TryInto<KeyStringOrOID>,
+    ) -> Option<HashSet<&AttributeType>> {
+        if let Some(object_class) = self.find_object_class(id) {
+            let mut result = HashSet::new();
+            for attribute_name in object_class.must.iter() {
+                if let Some(attribute) = self.find_attribute_type(attribute_name) {
+                    result.insert(attribute);
+                }
+            }
+            for sup in &object_class.sup {
+                if let Some(required_attributes) = self.required_attributes(sup) {
+                    result.extend(required_attributes);
+                }
+            }
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    /// return the object class if it is present in the schema
+    #[cfg(feature = "chumsky")]
+    pub fn find_object_class(&self, id: impl TryInto<KeyStringOrOID>) -> Option<&ObjectClass> {
+        let id: Result<KeyStringOrOID, _> = id.try_into();
+        match id {
+            Ok(id) => {
+                let match_fn: Box<dyn FnMut(&&ObjectClass) -> bool> = match id {
+                    KeyStringOrOID::OID(oid) => Box::new(move |at: &&ObjectClass| (*at).oid == oid),
+                    KeyStringOrOID::KeyString(s) => Box::new(move |at: &&ObjectClass| {
+                        (*at)
+                            .name
+                            .iter()
+                            .map(|n| n.to_lowercase())
+                            .contains(&s.to_lowercase())
+                    }),
+                };
+                self.object_classes.iter().find(match_fn)
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// apply the given function to the named object class
+    /// and all its ancestors in the LDAP schema until one
+    /// returns Some
+    #[cfg(feature = "chumsky")]
+    pub fn find_object_class_property<'a, R>(
+        &'a self,
+        id: impl TryInto<KeyStringOrOID>,
+        f: fn(&'a ObjectClass) -> Option<&'a R>,
+    ) -> Option<&'a R> {
+        let object_class = self.find_object_class(id);
+        if let Some(object_class) = object_class {
+            if let Some(r) = f(object_class) {
+                Some(r)
+            } else {
+                let ks_or_oids = &object_class.sup;
+                for ks_or_oid in ks_or_oids {
+                    if let Some(r) = self.find_object_class_property(ks_or_oid, f) {
+                        return Some(r);
+                    }
+                }
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     /// return the attribute type if it is present in the schema
     #[cfg(feature = "chumsky")]
-    pub fn find_attribute_type<'a>(&'a self, id: &str) -> Option<&'a AttributeType> {
-        let match_fn: Box<dyn FnMut(&&AttributeType) -> bool> = match oid_parser().parse(id) {
-            Ok(oid) => Box::new(move |at: &&AttributeType| (*at).oid == oid),
-            Err(_) => {
-                Box::new(move |at: &&AttributeType| (*at).name.contains(&KeyString(id.to_string())))
+    pub fn find_attribute_type(&self, id: impl TryInto<KeyStringOrOID>) -> Option<&AttributeType> {
+        let id: Result<KeyStringOrOID, _> = id.try_into();
+        match id {
+            Ok(id) => {
+                let match_fn: Box<dyn FnMut(&&AttributeType) -> bool> = match id {
+                    KeyStringOrOID::OID(oid) => {
+                        Box::new(move |at: &&AttributeType| (*at).oid == oid)
+                    }
+                    KeyStringOrOID::KeyString(s) => Box::new(move |at: &&AttributeType| {
+                        (*at)
+                            .name
+                            .iter()
+                            .map(|n| n.to_lowercase())
+                            .contains(&s.to_lowercase())
+                    }),
+                };
+                self.attribute_types.iter().find(match_fn)
             }
-        };
-        self.attribute_types.iter().find(match_fn)
+            Err(_) => None,
+        }
     }
 
     /// apply the given function to the named attribute type
@@ -738,7 +862,7 @@ impl LDAPSchema {
     #[cfg(feature = "chumsky")]
     pub fn find_attribute_type_property<'a, R>(
         &'a self,
-        id: &str,
+        id: impl TryInto<KeyStringOrOID>,
         f: fn(&'a AttributeType) -> Option<&'a R>,
     ) -> Option<&'a R> {
         let attribute_type = self.find_attribute_type(id);
@@ -752,6 +876,48 @@ impl LDAPSchema {
             }
         } else {
             None
+        }
+    }
+
+    /// return the ldap syntax if it is present in the schema
+    #[cfg(feature = "chumsky")]
+    pub fn find_ldap_syntax(&self, id: impl TryInto<ObjectIdentifier>) -> Option<&LDAPSyntax> {
+        let id: Result<ObjectIdentifier, _> = id.try_into();
+        match id {
+            Ok(id) => self
+                .ldap_syntaxes
+                .iter()
+                .find(move |ls: &&LDAPSyntax| (*ls).oid == id),
+            Err(_) => None,
+        }
+    }
+
+    /// return the matching rule if it is present in the schema
+    #[cfg(feature = "chumsky")]
+    pub fn find_matching_rule(&self, id: impl TryInto<ObjectIdentifier>) -> Option<&MatchingRule> {
+        let id: Result<ObjectIdentifier, _> = id.try_into();
+        match id {
+            Ok(id) => self
+                .matching_rules
+                .iter()
+                .find(move |ls: &&MatchingRule| (*ls).oid == id),
+            Err(_) => None,
+        }
+    }
+
+    /// return the matching rule use if it is present in the schema
+    #[cfg(feature = "chumsky")]
+    pub fn find_matching_rule_use(
+        &self,
+        id: impl TryInto<ObjectIdentifier>,
+    ) -> Option<&MatchingRuleUse> {
+        let id: Result<ObjectIdentifier, _> = id.try_into();
+        match id {
+            Ok(id) => self
+                .matching_rule_use
+                .iter()
+                .find(move |ls: &&MatchingRuleUse| (*ls).oid == id),
+            Err(_) => None,
         }
     }
 }
