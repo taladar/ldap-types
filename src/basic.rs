@@ -264,7 +264,7 @@ impl std::fmt::Display for KeyStringOrOID {
 impl TryFrom<&str> for KeyStringOrOID {
     type Error = Vec<Simple<char>>;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        keystring_or_oid_parser().parse(value)
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value)
     }
 }
 
@@ -272,7 +272,7 @@ impl TryFrom<&str> for KeyStringOrOID {
 impl TryFrom<String> for KeyStringOrOID {
     type Error = Vec<Simple<char>>;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        keystring_or_oid_parser().parse(value)
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value)
     }
 }
 
@@ -280,7 +280,7 @@ impl TryFrom<String> for KeyStringOrOID {
 impl TryFrom<&String> for KeyStringOrOID {
     type Error = Vec<Simple<char>>;
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        keystring_or_oid_parser().parse(value.to_string())
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value.to_owned())
     }
 }
 
