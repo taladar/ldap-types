@@ -1,5 +1,6 @@
 //! Contains al the basic LDAP types
 use std::{
+    collections::HashMap,
     convert::TryFrom,
     hash::{Hash, Hasher},
 };
@@ -19,6 +20,9 @@ use itertools::Itertools;
 
 #[cfg(feature = "serde")]
 use serde::{de::SeqAccess, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+
+#[cfg(feature = "diff")]
+use diff::Diff;
 
 /// represents the object to request from an LDAP server to figure out which
 /// features,... it supports
@@ -384,7 +388,7 @@ impl std::fmt::Debug for OIDWithLength {
 /// but it can also be a plus sign separated string of several such pairs
 ///
 /// <https://ldapwiki.com/wiki/Relative%20Distinguished%20Name>
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RelativeDistinguishedName {
     /// the attributes of the RDN
@@ -393,6 +397,51 @@ pub struct RelativeDistinguishedName {
         serde(serialize_with = "serialize_rdn", deserialize_with = "deserialize_rdn")
     )]
     pub attributes: Vec<(KeyStringOrOID, Vec<u8>)>,
+}
+
+impl std::fmt::Display for RelativeDistinguishedName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut first = true;
+        for (k, v) in &self.attributes {
+            if !first {
+                write!(f, "+")?;
+            } else {
+                first = false;
+            }
+            write!(f, "{}", k)?;
+            write!(f, "=")?;
+            if let Ok(s) = std::str::from_utf8(v) {
+                write!(f, "{}", s)?;
+            } else {
+                write!(f, "#{}", hex::encode(v))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<&str> for RelativeDistinguishedName {
+    type Error = Vec<Simple<char>>;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<String> for RelativeDistinguishedName {
+    type Error = Vec<Simple<char>>;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+impl From<RelativeDistinguishedName> for String {
+    fn from(rdn: RelativeDistinguishedName) -> Self {
+        rdn.to_string()
+    }
 }
 
 /// serialize RDN attribute values as string if possible
@@ -515,11 +564,125 @@ pub fn rdn_parser() -> impl Parser<char, RelativeDistinguishedName, Error = Simp
 /// components
 ///
 /// <https://ldapwiki.com/wiki/Distinguished%20Names>
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DistinguishedName {
     /// the RDN components of the DN
     pub rdns: Vec<RelativeDistinguishedName>,
+}
+
+impl DistinguishedName {
+    /// returns true if this is the empty DN
+    pub fn is_empty(&self) -> bool {
+        self.rdns.is_empty()
+    }
+    /// returns the DN for the parent object in the LDAP hierarchy unless this is
+    /// already the empty DN
+    pub fn parent(&self) -> Option<DistinguishedName> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(DistinguishedName {
+                rdns: self.rdns.iter().skip(1).cloned().collect(),
+            })
+        }
+    }
+
+    /// checks if the current DN is an ancestor (parent, parent of parent,...)
+    /// of the given other DN
+    ///
+    /// it does return false if both DNs are identical
+    pub fn is_ancestor_of(&self, other: &DistinguishedName) -> bool {
+        let mut it = self.rdns.iter().rev();
+        let mut other_it = other.rdns.iter().rev();
+        loop {
+            let e = it.next();
+            let other_e = other_it.next();
+            match (e, other_e) {
+                (None, None) => {
+                    // both DNs are identical
+                    return false;
+                }
+                (Some(_), None) => {
+                    // self is longer, can not be an ancestor
+                    return false;
+                }
+                (None, Some(_)) => {
+                    // so far we have not gotten a false and self is longer,
+                    // so other must be an ancestor
+                    return true;
+                }
+                (Some(e), Some(other_e)) => {
+                    if e != other_e {
+                        // different RDNs in the same position mean self
+                        // can not be an ancestor of other (or vice versa)
+                        return false;
+                    }
+                    // identical RDNs in this position mean we can advance
+                    // the loop
+                }
+            }
+        }
+    }
+
+    /// add suffix DN to this DN (e.g. the base DN)
+    pub fn add_suffix(&self, other: &DistinguishedName) -> DistinguishedName {
+        DistinguishedName {
+            rdns: vec![self.rdns.to_vec(), other.rdns.to_vec()].concat(),
+        }
+    }
+
+    /// remove a suffix DN from this DN (e.g. the base DN)
+    pub fn strip_suffix(&self, other: &DistinguishedName) -> Option<DistinguishedName> {
+        if !other.is_ancestor_of(self) {
+            None
+        } else {
+            let self_len = self.rdns.len();
+            let other_len = other.rdns.len();
+            Some(DistinguishedName {
+                rdns: self.rdns.split_at(self_len - other_len).0.to_vec(),
+            })
+        }
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<&str> for DistinguishedName {
+    type Error = Vec<Simple<char>>;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        (dn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl TryFrom<String> for DistinguishedName {
+    type Error = Vec<Simple<char>>;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        (dn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+impl From<DistinguishedName> for String {
+    fn from(dn: DistinguishedName) -> Self {
+        dn.to_string()
+    }
+}
+
+impl std::fmt::Display for DistinguishedName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut first = true;
+        for rdn in &self.rdns {
+            if !first {
+                write!(f, ",")?;
+            } else {
+                first = false;
+            }
+            write!(f, "{}", rdn)?;
+        }
+        Ok(())
+    }
 }
 
 impl PartialOrd for DistinguishedName {
@@ -546,6 +709,101 @@ pub fn dn_parser() -> impl Parser<char, DistinguishedName, Error = Simple<char>>
     rdn_parser()
         .separated_by(just(','))
         .map(|rdns| DistinguishedName { rdns })
+}
+
+/// represents an object in the LDAP tree
+/// we would use ldap3::SearchEntry but then we would not be able to derive Diff
+/// easily
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "diff", derive(Diff))]
+#[cfg_attr(feature = "diff", diff(attr(#[derive(Debug, Serialize, Deserialize)] #[allow(missing_docs)])))]
+pub struct LDAPEntry {
+    /// the DN of the entry
+    pub dn: String,
+    /// the textual attributes of the entry
+    pub attrs: HashMap<String, Vec<String>>,
+    /// the binary attributes of the entry
+    pub bin_attrs: HashMap<String, Vec<Vec<u8>>>,
+}
+
+#[cfg(feature = "ldap3")]
+impl From<ldap3::SearchEntry> for LDAPEntry {
+    fn from(entry: ldap3::SearchEntry) -> Self {
+        Self {
+            dn: entry.dn,
+            attrs: entry.attrs,
+            bin_attrs: entry.bin_attrs,
+        }
+    }
+}
+
+#[cfg(feature = "ldap3")]
+impl From<LDAPEntry> for ldap3::SearchEntry {
+    fn from(entry: LDAPEntry) -> Self {
+        Self {
+            dn: entry.dn,
+            attrs: entry.attrs,
+            bin_attrs: entry.bin_attrs,
+        }
+    }
+}
+
+/// an operation to perform to turn one LDAP object into another.
+/// we purposefully only include operations here that operate without
+/// moving the object to a different DN
+#[derive(Debug, Clone, EnumAsInner)]
+pub enum LDAPOperation {
+    /// add a new entry
+    Add(LDAPEntry),
+    /// delete an existing entry
+    Delete {
+        /// the DN of the entry to delete
+        dn: String,
+    },
+    /// modify attributes of an existing entry
+    Modify {
+        /// the DN of the entry to modify
+        dn: String,
+        /// the modifications to textual attributes to perform
+        mods: Vec<ldap3::Mod<String>>,
+        /// the modifications to binary attributes to perform
+        bin_mods: Vec<ldap3::Mod<Vec<u8>>>,
+    },
+}
+
+impl LDAPOperation {
+    /// Used to order operations so parents are added first and children deleted first
+    #[cfg(feature = "chumsky")]
+    pub fn operation_apply_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (
+                LDAPOperation::Add(entry1 @ LDAPEntry { .. }),
+                LDAPOperation::Add(entry2 @ LDAPEntry { .. }),
+            ) => {
+                let parsed_dn1: Result<DistinguishedName, _> =
+                    dn_parser().parse(entry1.dn.to_owned());
+                let parsed_dn2: Result<DistinguishedName, _> =
+                    dn_parser().parse(entry2.dn.to_owned());
+                if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
+                    Some(parsed_dn1.cmp(&parsed_dn2))
+                } else {
+                    None
+                }
+            }
+            (op1 @ LDAPOperation::Delete { .. }, op2 @ LDAPOperation::Delete { .. }) => {
+                let parsed_dn1: Result<DistinguishedName, _> =
+                    dn_parser().parse(op1.as_delete().unwrap().to_owned());
+                let parsed_dn2: Result<DistinguishedName, _> =
+                    dn_parser().parse(op2.as_delete().unwrap().to_owned());
+                if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
+                    Some(parsed_dn1.cmp(&parsed_dn2))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
