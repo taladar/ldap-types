@@ -1,3 +1,9 @@
+## 0.1.3
+
+fix parser tests
+add various trait implementations to DN and RND types
+add LDAPEntry, LDAPOperation types
+
 ## 0.1.2
 
 add From/TryFrom instances
