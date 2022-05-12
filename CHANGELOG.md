@@ -1,3 +1,7 @@
+## 0.2.1
+
+add FromStr instances for KeyStringOrOID, RelativeDistinguishedName and DistinguishedName
+
 ## 0.2.0
 
 update ldap3 dependency to 0.10.5 or above (earlier 0.10 have a bug with SASL external auth)

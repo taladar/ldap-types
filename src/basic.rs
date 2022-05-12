@@ -288,6 +288,15 @@ impl TryFrom<&String> for KeyStringOrOID {
     }
 }
 
+#[cfg(feature = "chumsky")]
+impl std::str::FromStr for KeyStringOrOID {
+    type Err = Vec<Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(s.to_owned())
+    }
+}
+
 impl From<&KeyStringOrOID> for KeyStringOrOID {
     fn from(value: &KeyStringOrOID) -> Self {
         value.to_owned()
@@ -435,6 +444,15 @@ impl TryFrom<String> for RelativeDistinguishedName {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         (rdn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl std::str::FromStr for RelativeDistinguishedName {
+    type Err = Vec<Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(s)
     }
 }
 
@@ -661,6 +679,15 @@ impl TryFrom<String> for DistinguishedName {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         (dn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl std::str::FromStr for DistinguishedName {
+    type Err = Vec<Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        (dn_parser().then_ignore(chumsky::primitive::end())).parse(s)
     }
 }
 
