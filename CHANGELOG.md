@@ -1,3 +1,8 @@
+## 0.2.2
+
+add proper error display for chumsky parser errors via ariadne
+add function to return combined attributes from an LDAPEntry as required by add operation
+
 ## 0.2.1
 
 add FromStr instances for KeyStringOrOID, RelativeDistinguishedName and DistinguishedName

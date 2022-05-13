@@ -1,6 +1,6 @@
 //! Contains al the basic LDAP types
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::TryFrom,
     hash::{Hash, Hasher},
 };
@@ -18,11 +18,108 @@ use chumsky::{prelude::*, text::digits};
 #[cfg(feature = "chumsky")]
 use itertools::Itertools;
 
+#[cfg(feature = "chumsky")]
+use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
+
 #[cfg(feature = "serde")]
 use serde::{de::SeqAccess, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 
 #[cfg(feature = "diff")]
 use diff::Diff;
+
+/// a wrapped error in case parsing fails to get proper error output
+/// the chumsky errors themselves lack Display and std::error::Error
+/// implementations
+#[cfg(feature = "chumsky")]
+#[derive(Debug)]
+pub struct ChumskyError {
+    /// description of the object we were trying to parse
+    pub description: String,
+    /// source string for parsing
+    pub source: String,
+    /// errors encountered during parsing
+    pub errors: Vec<chumsky::error::Simple<char>>,
+}
+
+#[cfg(feature = "chumsky")]
+impl std::fmt::Display for ChumskyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for e in &self.errors {
+            let msg = format!(
+                "While parsing {}: {}{}, expected {}",
+                self.description,
+                if e.found().is_some() {
+                    "Unexpected token"
+                } else {
+                    "Unexpected end of input"
+                },
+                if let Some(label) = e.label() {
+                    format!(" while parsing {}", label)
+                } else {
+                    String::new()
+                },
+                if e.expected().len() == 0 {
+                    "end of input".to_string()
+                } else {
+                    e.expected()
+                        .map(|expected| match expected {
+                            Some(expected) => expected.to_string(),
+                            None => "end of input".to_string(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+            );
+
+            let report = Report::build(ReportKind::Error, (), e.span().start)
+                .with_code(3)
+                .with_message(msg)
+                .with_label(
+                    Label::new(e.span())
+                        .with_message(format!(
+                            "Unexpected {}",
+                            e.found()
+                                .map(|c| format!("token {}", c.fg(Color::Red)))
+                                .unwrap_or_else(|| "end of input".to_string())
+                        ))
+                        .with_color(Color::Red),
+                );
+
+            let report = match e.reason() {
+                chumsky::error::SimpleReason::Unclosed { span, delimiter } => report.with_label(
+                    Label::new(span.clone())
+                        .with_message(format!(
+                            "Unclosed delimiter {}",
+                            delimiter.fg(Color::Yellow)
+                        ))
+                        .with_color(Color::Yellow),
+                ),
+                chumsky::error::SimpleReason::Unexpected => report,
+                chumsky::error::SimpleReason::Custom(msg) => report.with_label(
+                    Label::new(e.span())
+                        .with_message(format!("{}", msg.fg(Color::Yellow)))
+                        .with_color(Color::Yellow),
+                ),
+            };
+
+            let mut s: Vec<u8> = Vec::new();
+            report
+                .finish()
+                .write(Source::from(&self.source), &mut s)
+                .map_err(|_| <std::fmt::Error as std::default::Default>::default())?;
+            let s = std::str::from_utf8(&s).expect("Expected ariadne to generate valid UTF-8");
+            write!(f, "{}", s)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "chumsky")]
+impl std::error::Error for ChumskyError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
 
 /// represents the object to request from an LDAP server to figure out which
 /// features,... it supports
@@ -266,34 +363,58 @@ impl std::fmt::Display for KeyStringOrOID {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for KeyStringOrOID {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value)
+            .map_err(|e| ChumskyError {
+                description: "keystring or OID".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for KeyStringOrOID {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value.to_owned())
+            .map_err(|e| ChumskyError {
+                description: "keystring or OID".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&String> for KeyStringOrOID {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(value.to_owned())
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value.to_owned())
+            .map_err(|e| ChumskyError {
+                description: "keystring or OID".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for KeyStringOrOID {
-    type Err = Vec<Simple<char>>;
+    type Err = ChumskyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end())).parse(s.to_owned())
+        (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
+            .parse(s.to_owned())
+            .map_err(|e| ChumskyError {
+                description: "keystring or OID".to_string(),
+                source: s.to_string(),
+                errors: e,
+            })
     }
 }
 
@@ -431,28 +552,46 @@ impl std::fmt::Display for RelativeDistinguishedName {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for RelativeDistinguishedName {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (rdn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value)
+            .map_err(|e| ChumskyError {
+                description: "relative distinguished name".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for RelativeDistinguishedName {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (rdn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value.to_owned())
+            .map_err(|e| ChumskyError {
+                description: "relative distinguished name".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for RelativeDistinguishedName {
-    type Err = Vec<Simple<char>>;
+    type Err = ChumskyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        (rdn_parser().then_ignore(chumsky::primitive::end())).parse(s)
+        (rdn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(s)
+            .map_err(|e| ChumskyError {
+                description: "relative distinguished name".to_string(),
+                source: s.to_string(),
+                errors: e,
+            })
     }
 }
 
@@ -666,28 +805,46 @@ impl DistinguishedName {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for DistinguishedName {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        (dn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (dn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value)
+            .map_err(|e| ChumskyError {
+                description: "distinguished name".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for DistinguishedName {
-    type Error = Vec<Simple<char>>;
+    type Error = ChumskyError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        (dn_parser().then_ignore(chumsky::primitive::end())).parse(value)
+        (dn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(value.to_owned())
+            .map_err(|e| ChumskyError {
+                description: "distinguished name".to_string(),
+                source: value.to_string(),
+                errors: e,
+            })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for DistinguishedName {
-    type Err = Vec<Simple<char>>;
+    type Err = ChumskyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        (dn_parser().then_ignore(chumsky::primitive::end())).parse(s)
+        (dn_parser().then_ignore(chumsky::primitive::end()))
+            .parse(s)
+            .map_err(|e| ChumskyError {
+                description: "distinguished name".to_string(),
+                source: s.to_string(),
+                errors: e,
+            })
     }
 }
 
@@ -751,6 +908,32 @@ pub struct LDAPEntry {
     pub attrs: HashMap<String, Vec<String>>,
     /// the binary attributes of the entry
     pub bin_attrs: HashMap<String, Vec<Vec<u8>>>,
+}
+
+impl LDAPEntry {
+    /// return the combined attributes from attrs and bin_attrs for use in e.g. the [ldap3::Ldap::add] method
+    pub fn combined_attrs(&self) -> Vec<(Vec<u8>, HashSet<Vec<u8>>)> {
+        let mut result: HashMap<Vec<u8>, HashSet<Vec<u8>>> = HashMap::new();
+        for (attr_name, attr_values) in &self.attrs {
+            let attr_name = attr_name.as_bytes().to_vec();
+            let attr_values = attr_values.iter().map(|x| x.as_bytes().to_vec()).collect();
+            if let Some(values) = result.get_mut(&attr_name) {
+                values.extend(attr_values);
+            } else {
+                result.insert(attr_name, attr_values);
+            }
+        }
+        for (attr_name, attr_values) in &self.bin_attrs {
+            let attr_name = attr_name.as_bytes().to_vec();
+            let attr_values = attr_values.iter().map(|x| x.to_vec()).collect();
+            if let Some(values) = result.get_mut(&attr_name) {
+                values.extend(attr_values);
+            } else {
+                result.insert(attr_name, attr_values);
+            }
+        }
+        result.into_iter().collect()
+    }
 }
 
 #[cfg(feature = "ldap3")]

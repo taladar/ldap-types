@@ -3,7 +3,7 @@ name = "ldap-types"
 description = "Implements the basic LDAP types so they can be used in other crates"
 readme = "README.md"
 license = "MIT/Apache-2.0"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Matthias Hörmann <mhoermann@gmail.com>"]
 edition = "2021"
 repository = "https://github.com/taladar/ldap-types"
@@ -19,7 +19,7 @@ debug = true
 
 [features]
 default = ["chumsky","serde","diff","ldap3"]
-chumsky = ["dep:chumsky", "dep:itertools"]
+chumsky = ["dep:chumsky", "dep:ariadne", "dep:itertools"]
 serde = ["dep:serde", "oid/serde_support"]
 diff = ["dep:diff-struct"]
 ldap3 = ["dep:ldap3"]
@@ -45,6 +45,10 @@ version = "0.1.9"
 
 [dependencies.chumsky]
 version = "0.7.0"
+optional = true
+
+[dependencies.ariadne]
+version = "0.1.5"
 optional = true
 
 [dependencies.itertools]
