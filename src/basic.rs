@@ -673,7 +673,7 @@ where
 /// parses a series of hex-encoded bytes (always even number of hex digits)
 #[cfg(feature = "chumsky")]
 pub fn hex_byte_parser() -> impl Parser<char, u8, Error = Simple<char>> {
-    filter(|c: &char| c.is_digit(16))
+    filter(|c: &char| c.is_ascii_hexdigit())
         .repeated()
         .exactly(2)
         .collect::<String>()
