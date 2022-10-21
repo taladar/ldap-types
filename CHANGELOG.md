@@ -1,3 +1,8 @@
+## 0.2.3
+
+fix SPDX license expression
+update dependencies to get rid of unmaintained indirect ones
+
 ## 0.2.2
 
 add proper error display for chumsky parser errors via ariadne
