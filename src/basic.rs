@@ -8,8 +8,6 @@ use std::{
 use educe::Educe;
 use oid::ObjectIdentifier;
 
-use is_macro::Is;
-
 use enum_as_inner::EnumAsInner;
 
 #[cfg(feature = "chumsky")]
@@ -288,7 +286,7 @@ pub fn keystring_parser() -> impl Parser<char, KeyString, Error = Simple<char>> 
 /// parses a [KeyString] in locations where it is single-quoted
 #[cfg(feature = "chumsky")]
 pub fn quoted_keystring_parser() -> impl Parser<char, KeyString, Error = Simple<char>> {
-    keystring_parser().delimited_by('\'', '\'')
+    keystring_parser().delimited_by(just('\''), just('\''))
 }
 
 /// hash function for ObjectIdentifier based on string representation
@@ -299,7 +297,7 @@ pub fn hash_oid<H: Hasher>(s: &ObjectIdentifier, state: &mut H) {
 
 /// LDAP allows the use of either a keystring or an OID in many locations,
 /// e.g. in DNs or in the schema
-#[derive(Clone, Debug, Is, EnumAsInner, Educe)]
+#[derive(Clone, Debug, EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(PartialEq, Eq, Hash)]
 pub enum KeyStringOrOID {
@@ -313,20 +311,7 @@ pub enum KeyStringOrOID {
 
 impl PartialOrd for KeyStringOrOID {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (KeyStringOrOID::KeyString(s1), KeyStringOrOID::KeyString(s2)) => s1.partial_cmp(s2),
-            (KeyStringOrOID::KeyString(_), KeyStringOrOID::OID(_)) => {
-                Some(std::cmp::Ordering::Less)
-            }
-            (KeyStringOrOID::OID(_), KeyStringOrOID::KeyString(_)) => {
-                Some(std::cmp::Ordering::Greater)
-            }
-            (KeyStringOrOID::OID(oid1), KeyStringOrOID::OID(oid2)) => {
-                let s1: String = oid1.into();
-                let s2: String = oid2.into();
-                s1.partial_cmp(&s2)
-            }
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -785,7 +770,7 @@ impl DistinguishedName {
     /// add suffix DN to this DN (e.g. the base DN)
     pub fn add_suffix(&self, other: &DistinguishedName) -> DistinguishedName {
         DistinguishedName {
-            rdns: vec![self.rdns.to_vec(), other.rdns.to_vec()].concat(),
+            rdns: [self.rdns.to_vec(), other.rdns.to_vec()].concat(),
         }
     }
 

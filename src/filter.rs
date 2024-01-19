@@ -423,25 +423,25 @@ pub fn search_filter_parser() -> impl Parser<char, LDAPSearchFilter, Error = Sim
         choice::<_, Simple<char>>((
             just('&')
                 .ignore_then(inner.clone().repeated().at_least(1))
-                .delimited_by('(', ')')
+                .delimited_by(just('('), just(')'))
                 .map(LDAPSearchFilter::And)
                 .labelled("search filter AND expression"),
             just('|')
                 .ignore_then(inner.clone().repeated().at_least(1))
-                .delimited_by('(', ')')
+                .delimited_by(just('('), just(')'))
                 .map(LDAPSearchFilter::Or)
                 .labelled("search filter OR expression"),
             just('!')
                 .ignore_then(inner.clone())
-                .delimited_by('(', ')')
+                .delimited_by(just('('), just(')'))
                 .map(|f| LDAPSearchFilter::Not(Box::new(f)))
                 .labelled("search filter NOT expression"),
-            search_equal_parser().delimited_by('(', ')'),
-            search_approx_parser().delimited_by('(', ')'),
-            search_greater_parser().delimited_by('(', ')'),
-            search_less_parser().delimited_by('(', ')'),
-            search_present_parser().delimited_by('(', ')'),
-            search_substring_parser().delimited_by('(', ')'),
+            search_equal_parser().delimited_by(just('('), just(')')),
+            search_approx_parser().delimited_by(just('('), just(')')),
+            search_greater_parser().delimited_by(just('('), just(')')),
+            search_less_parser().delimited_by(just('('), just(')')),
+            search_present_parser().delimited_by(just('('), just(')')),
+            search_substring_parser().delimited_by(just('('), just(')')),
         ))
         .boxed()
     })

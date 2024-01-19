@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use chumsky::{prelude::*, text::digits};
 use educe::Educe;
 use enum_as_inner::EnumAsInner;
-use is_macro::Is;
 use oid::ObjectIdentifier;
 
 #[cfg(feature = "chumsky")]
@@ -28,7 +27,7 @@ use crate::basic::{
 use serde::{Deserialize, Serialize};
 
 /// stores the parameter values that can appear behind a tag in an LDAP schema entry
-#[derive(Clone, Debug, Is, EnumAsInner, Educe)]
+#[derive(Clone, Debug, EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(PartialEq, Eq, Hash)]
 pub enum LDAPSchemaTagValue {
@@ -120,7 +119,7 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::OIDWithLength => oid_parser()
             .then(
                 digits(10)
-                    .delimited_by('{', '}')
+                    .delimited_by(just('{'), just('}'))
                     .try_map(|x, span| {
                         x.parse().map_err(|e| {
                             Simple::custom(
@@ -136,7 +135,7 @@ pub fn ldap_schema_tag_value_parser(
             .boxed(),
         LDAPSchemaTagType::String => none_of("'")
             .repeated()
-            .delimited_by('\'', '\'')
+            .delimited_by(just('\''), just('\''))
             .collect::<String>()
             .map(LDAPSchemaTagValue::String)
             .labelled("single-quoted string")
@@ -156,14 +155,14 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::Boolean => just("TRUE")
             .to(true)
             .or(just("FALSE").to(false))
-            .delimited_by('\'', '\'')
+            .delimited_by(just('\''), just('\''))
             .map(LDAPSchemaTagValue::Boolean)
             .labelled("single-quoted uppercase boolean")
             .boxed(),
         LDAPSchemaTagType::KeyStringOrOIDList => keystring_or_oid_parser()
             .padded()
             .separated_by(just('$'))
-            .delimited_by('(', ')')
+            .delimited_by(just('('), just(')'))
             .or(keystring_or_oid_parser().map(|x| vec![x]))
             .map(LDAPSchemaTagValue::KeyStringOrOIDList)
             .labelled("list of keystrings or OIDs separated by $")
@@ -171,7 +170,7 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::QuotedKeyStringList => quoted_keystring_parser()
             .padded()
             .repeated()
-            .delimited_by('(', ')')
+            .delimited_by(just('('), just(')'))
             .or(quoted_keystring_parser().map(|x| vec![x]))
             .map(LDAPSchemaTagValue::QuotedKeyStringList)
             .labelled("list of quoted keystrings separated by spaces")
@@ -216,7 +215,7 @@ pub fn ldap_schema_parser(
                 .repeated(),
         )
         .padded()
-        .delimited_by('(', ')')
+        .delimited_by(just('('), just(')'))
 }
 
 /// this is used to extract a required tag's value from the result of [ldap_schema_parser]
@@ -590,7 +589,7 @@ pub fn attribute_type_parser() -> impl Parser<char, AttributeType, Error = Simpl
 }
 
 /// type of LDAP object class
-#[derive(PartialEq, Eq, Clone, Debug, Is, EnumAsInner, Hash)]
+#[derive(PartialEq, Eq, Clone, Debug, EnumAsInner, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectClassType {
     /// this can not be used as an actual object class and is purely used
@@ -790,10 +789,9 @@ impl LDAPSchema {
         match id {
             Ok(id) => {
                 let match_fn: Box<dyn FnMut(&&ObjectClass) -> bool> = match id {
-                    KeyStringOrOID::OID(oid) => Box::new(move |at: &&ObjectClass| (*at).oid == oid),
+                    KeyStringOrOID::OID(oid) => Box::new(move |at: &&ObjectClass| at.oid == oid),
                     KeyStringOrOID::KeyString(s) => Box::new(move |at: &&ObjectClass| {
-                        (*at)
-                            .name
+                        at.name
                             .iter()
                             .map(|n| n.to_lowercase())
                             .contains(&s.to_lowercase())
@@ -839,12 +837,9 @@ impl LDAPSchema {
         match id {
             Ok(id) => {
                 let match_fn: Box<dyn FnMut(&&AttributeType) -> bool> = match id {
-                    KeyStringOrOID::OID(oid) => {
-                        Box::new(move |at: &&AttributeType| (*at).oid == oid)
-                    }
+                    KeyStringOrOID::OID(oid) => Box::new(move |at: &&AttributeType| at.oid == oid),
                     KeyStringOrOID::KeyString(s) => Box::new(move |at: &&AttributeType| {
-                        (*at)
-                            .name
+                        at.name
                             .iter()
                             .map(|n| n.to_lowercase())
                             .contains(&s.to_lowercase())
@@ -887,7 +882,7 @@ impl LDAPSchema {
             Ok(id) => self
                 .ldap_syntaxes
                 .iter()
-                .find(move |ls: &&LDAPSyntax| (*ls).oid == id),
+                .find(move |ls: &&LDAPSyntax| ls.oid == id),
             Err(_) => None,
         }
     }
@@ -900,7 +895,7 @@ impl LDAPSchema {
             Ok(id) => self
                 .matching_rules
                 .iter()
-                .find(move |ls: &&MatchingRule| (*ls).oid == id),
+                .find(move |ls: &&MatchingRule| ls.oid == id),
             Err(_) => None,
         }
     }
@@ -916,7 +911,7 @@ impl LDAPSchema {
             Ok(id) => self
                 .matching_rule_use
                 .iter()
-                .find(move |ls: &&MatchingRuleUse| (*ls).oid == id),
+                .find(move |ls: &&MatchingRuleUse| ls.oid == id),
             Err(_) => None,
         }
     }

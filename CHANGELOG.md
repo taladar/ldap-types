@@ -1,3 +1,7 @@
+## 0.3.0
+
+update dependencies, including some incompatible updates
+
 ## 0.2.3
 
 fix SPDX license expression
