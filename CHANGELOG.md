@@ -1,3 +1,9 @@
+## 0.4.0
+
+update dependencies, including some incompatible updates
+sort dependencies in Cargo.toml with cargo sort
+update deny.toml to new format
+
 ## 0.3.0
 
 update dependencies, including some incompatible updates

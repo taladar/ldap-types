@@ -3,22 +3,21 @@ name = "ldap-types"
 description = "Implements the basic LDAP types so they can be used in other crates"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Matthias Hörmann <mhoermann@gmail.com>"]
 edition = "2021"
 repository = "https://github.com/taladar/ldap-types"
-keywords = [ "ldap", "schema", "filter" ]
-categories = [ "data-structures", "parsing" ]
-exclude = [ ".env", "tarpaulin-report.html", "tarpaulin-report.json" ]
+keywords = ["ldap", "schema", "filter"]
+categories = ["data-structures", "parsing"]
+exclude = [".env", "tarpaulin-report.html", "tarpaulin-report.json"]
 
 [profile.release]
 # do not strip debug info from release builds, useful for debugging those, cargo-flamegraph profiling or similar use cases
 debug = true
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["chumsky","serde","diff","ldap3"]
+default = ["chumsky", "serde", "diff", "ldap3"]
 chumsky = ["dep:chumsky", "dep:ariadne", "dep:itertools"]
 serde = ["dep:serde", "oid/serde_support"]
 diff = ["dep:diff-struct"]
@@ -26,9 +25,35 @@ ldap3 = ["dep:ldap3"]
 
 [dependencies]
 
+[dependencies.ariadne]
+version = "0.4.1"
+optional = true
+
+[dependencies.chumsky]
+version = "0.9.3"
+optional = true
+
 [dependencies.diff-struct]
 version = "0.5.3"
 optional = true
+
+[dependencies.educe]
+version = "0.5.11"
+features = ["Hash", "PartialEq", "Eq"]
+default-features = false
+
+[dependencies.enum-as-inner]
+version = "0.6.0"
+
+[dependencies.hex]
+version = "0.4.3"
+
+[dependencies.itertools]
+version = "0.13.0"
+optional = true
+
+[dependencies.lazy_static]
+version = "1.4.0"
 
 [dependencies.ldap3]
 version = "0.11.3"
@@ -37,39 +62,13 @@ optional = true
 [dependencies.oid]
 version = "0.2.1"
 
-[dependencies.enum-as-inner]
-version = "0.6.0"
-
-[dependencies.chumsky]
-version = "0.9.3"
-optional = true
-
-[dependencies.ariadne]
-version = "0.4.0"
-optional = true
-
-[dependencies.itertools]
-version = "0.12.0"
-optional = true
-
-[dependencies.hex]
-version = "0.4.3"
-
-[dependencies.lazy_static]
-version = "1.4.0"
-
 [dependencies.serde]
-version = "1.0.195"
-features = [ "derive" ]
+version = "1.0.202"
+features = ["derive"]
 optional = true
-
-[dependencies.educe]
-version = "0.5.11"
-features = ["Hash","PartialEq","Eq"]
-default-features = false
 
 [dev-dependencies.pretty_assertions]
 version = "1.4.0"
 
 [dev-dependencies.serde_json]
-version = "1.0.111"
+version = "1.0.117"
