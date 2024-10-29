@@ -131,7 +131,7 @@ impl LDAPSearchFilter {
                 attribute_value,
             } => {
                 if let Some(syntax) = source_ldap_schema
-                    .find_attribute_type_property(&attribute_name.to_string(), |at| {
+                    .find_attribute_type_property(attribute_name.to_string(), |at| {
                         at.syntax.as_ref()
                     })
                 {
@@ -153,7 +153,7 @@ impl LDAPSearchFilter {
                 attribute_value,
             } => {
                 if let Some(syntax) = source_ldap_schema
-                    .find_attribute_type_property(&attribute_name.to_string(), |at| {
+                    .find_attribute_type_property(attribute_name.to_string(), |at| {
                         at.syntax.as_ref()
                     })
                 {
@@ -175,7 +175,7 @@ impl LDAPSearchFilter {
                 attribute_value,
             } => {
                 if let Some(syntax) = source_ldap_schema
-                    .find_attribute_type_property(&attribute_name.to_string(), |at| {
+                    .find_attribute_type_property(attribute_name.to_string(), |at| {
                         at.syntax.as_ref()
                     })
                 {
@@ -197,7 +197,7 @@ impl LDAPSearchFilter {
                 attribute_value,
             } => {
                 if let Some(syntax) = source_ldap_schema
-                    .find_attribute_type_property(&attribute_name.to_string(), |at| {
+                    .find_attribute_type_property(attribute_name.to_string(), |at| {
                         at.syntax.as_ref()
                     })
                 {
@@ -222,7 +222,7 @@ impl LDAPSearchFilter {
                 attribute_value,
             } => {
                 if let Some(syntax) = source_ldap_schema
-                    .find_attribute_type_property(&attribute_name.to_string(), |at| {
+                    .find_attribute_type_property(attribute_name.to_string(), |at| {
                         at.syntax.as_ref()
                     })
                 {
