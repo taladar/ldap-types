@@ -449,9 +449,12 @@ pub fn search_filter_parser() -> impl Parser<char, LDAPSearchFilter, Error = Sim
 
 #[cfg(test)]
 mod test {
+    #[cfg(feature = "chumsky")]
     use super::*;
+    #[cfg(feature = "chumsky")]
     use crate::basic::KeyString;
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_equal_filter_parser() {
         assert_eq!(
@@ -463,6 +466,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_and_filter_parser() {
         assert_eq!(
@@ -480,6 +484,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_substring_filter_parser() {
         assert_eq!(
@@ -491,6 +496,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_present_filter_parser() {
         assert_eq!(
@@ -501,6 +507,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_filter_parser_roundtrip() {
         let s = "(&(host=foo.bar.baz)(port>=35))".to_string();

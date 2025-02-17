@@ -1,3 +1,8 @@
+## 0.5.0
+
+ensure all the various feature combinations compile
+document features in README
+
 ## 0.4.7
 
 update dependencies

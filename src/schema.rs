@@ -10,7 +10,6 @@ use educe::Educe;
 use enum_as_inner::EnumAsInner;
 use oid::ObjectIdentifier;
 
-#[cfg(feature = "chumsky")]
 use itertools::Itertools;
 
 #[cfg(feature = "chumsky")]
@@ -783,7 +782,6 @@ impl LDAPSchema {
     }
 
     /// return the object class if it is present in the schema
-    #[cfg(feature = "chumsky")]
     pub fn find_object_class(&self, id: impl TryInto<KeyStringOrOID>) -> Option<&ObjectClass> {
         let id: Result<KeyStringOrOID, _> = id.try_into();
         match id {
@@ -806,7 +804,6 @@ impl LDAPSchema {
     /// apply the given function to the named object class
     /// and all its ancestors in the LDAP schema until one
     /// returns Some
-    #[cfg(feature = "chumsky")]
     pub fn find_object_class_property<'a, R>(
         &'a self,
         id: impl TryInto<KeyStringOrOID>,
@@ -831,7 +828,6 @@ impl LDAPSchema {
     }
 
     /// return the attribute type if it is present in the schema
-    #[cfg(feature = "chumsky")]
     pub fn find_attribute_type(&self, id: impl TryInto<KeyStringOrOID>) -> Option<&AttributeType> {
         let id: Result<KeyStringOrOID, _> = id.try_into();
         match id {
@@ -854,7 +850,6 @@ impl LDAPSchema {
     /// apply the given function to the named attribute type
     /// and all its ancestors in the LDAP schema until one
     /// returns Some
-    #[cfg(feature = "chumsky")]
     pub fn find_attribute_type_property<'a, R>(
         &'a self,
         id: impl TryInto<KeyStringOrOID>,
@@ -864,8 +859,8 @@ impl LDAPSchema {
         if let Some(attribute_type) = attribute_type {
             if let Some(r) = f(attribute_type) {
                 Some(r)
-            } else if let Some(KeyString(sup)) = &attribute_type.sup {
-                self.find_attribute_type_property(sup, f)
+            } else if let Some(sup @ KeyString(_)) = &attribute_type.sup {
+                self.find_attribute_type_property(KeyStringOrOID::KeyString(sup.to_owned()), f)
             } else {
                 None
             }
@@ -919,13 +914,16 @@ impl LDAPSchema {
 
 #[cfg(test)]
 mod test {
+    #[cfg(feature = "chumsky")]
     use super::*;
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax() {
         assert!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )").is_ok());
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value1() {
         assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )"),
@@ -937,6 +935,7 @@ mod test {
             ));
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value2() {
         assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-NOT-HUMAN-READABLE 'TRUE' X-BINARY-TRANSFER-REQUIRED 'TRUE' )"),
@@ -948,6 +947,7 @@ mod test {
             ));
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value3() {
         assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' )"),
@@ -959,6 +959,7 @@ mod test {
             ));
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value4() {
         assert_eq!(
@@ -977,6 +978,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value5() {
         assert_eq!(
@@ -993,6 +995,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_desc_required() {
         assert!(ldap_syntax_parser()
@@ -1000,6 +1003,7 @@ mod test {
             .is_err());
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule() {
         assert!(matching_rule_parser()
@@ -1007,6 +1011,7 @@ mod test {
             .is_ok());
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_value() {
         assert_eq!(
@@ -1023,11 +1028,13 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_uses() {
         assert!(matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )").is_ok());
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_uses_value() {
         assert_eq!(matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )"),
@@ -1041,6 +1048,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_uses_single_applies_value() {
         assert_eq!(

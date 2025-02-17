@@ -883,9 +883,10 @@ pub fn dn_parser() -> impl Parser<char, DistinguishedName, Error = Simple<char>>
 /// represents an object in the LDAP tree
 /// we would use ldap3::SearchEntry but then we would not be able to derive Diff
 /// easily
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "diff", derive(Diff))]
-#[cfg_attr(feature = "diff", diff(attr(#[derive(Debug, Serialize, Deserialize)] #[allow(missing_docs)])))]
+#[cfg_attr(feature = "diff", diff(attr(#[derive(Debug)] #[allow(missing_docs)])))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPEntry {
     /// the DN of the entry
     pub dn: String,
@@ -947,6 +948,7 @@ impl From<LDAPEntry> for ldap3::SearchEntry {
 /// we purposefully only include operations here that operate without
 /// moving the object to a different DN
 #[derive(Debug, Clone, EnumAsInner)]
+#[cfg(feature = "ldap3")]
 pub enum LDAPOperation {
     /// add a new entry
     Add(LDAPEntry),
@@ -966,6 +968,7 @@ pub enum LDAPOperation {
     },
 }
 
+#[cfg(feature = "ldap3")]
 impl LDAPOperation {
     /// Used to order operations so parents are added first and children deleted first
     #[cfg(feature = "chumsky")]
@@ -1006,11 +1009,13 @@ mod test {
     use super::*;
     use pretty_assertions::assert_eq;
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_oid() {
         assert!(oid_parser().parse("1.2.3.4").is_ok());
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_oid_value() {
         assert_eq!(
@@ -1019,6 +1024,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_empty_dn() {
         assert_eq!(
@@ -1027,6 +1033,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_string_attribute() {
         assert_eq!(
@@ -1042,6 +1049,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_string_attribute_with_escaped_comma() {
         assert_eq!(
@@ -1057,6 +1065,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_binary_attribute() {
         assert_eq!(
@@ -1072,6 +1081,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_multiple_string_attributes() {
         assert_eq!(
@@ -1093,6 +1103,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_multiple_rdns() {
         assert_eq!(
@@ -1131,6 +1142,7 @@ mod test {
         )
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
         let oid: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
@@ -1139,6 +1151,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
         let expected: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
@@ -1147,6 +1160,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_keystring() -> Result<(), Box<dyn std::error::Error>> {
         let ks: KeyString = KeyString("foo".to_string());
@@ -1155,6 +1169,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_keystring() -> Result<(), Box<dyn std::error::Error>> {
         let expected: KeyString = KeyString("foo".to_string());
@@ -1163,6 +1178,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_keystring_or_oid_keystring() -> Result<(), Box<dyn std::error::Error>> {
         let ks: KeyStringOrOID = KeyStringOrOID::KeyString(KeyString("foo".to_string()));
@@ -1171,6 +1187,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_keystring_or_oid_keystring() -> Result<(), Box<dyn std::error::Error>>
     {
@@ -1180,6 +1197,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
         let ks: KeyStringOrOID = KeyStringOrOID::OID("1.2.3.4".to_string().try_into().unwrap());
@@ -1188,6 +1206,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
         let expected: KeyStringOrOID =
@@ -1197,6 +1216,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_rdn() -> Result<(), Box<dyn std::error::Error>> {
         let rdn: RelativeDistinguishedName = RelativeDistinguishedName {
@@ -1213,6 +1233,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_rdn_string() -> Result<(), Box<dyn std::error::Error>> {
         let expected: RelativeDistinguishedName = RelativeDistinguishedName {
@@ -1227,6 +1248,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_rdn_integers() -> Result<(), Box<dyn std::error::Error>> {
         let expected: RelativeDistinguishedName = RelativeDistinguishedName {
@@ -1242,6 +1264,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_dn() -> Result<(), Box<dyn std::error::Error>> {
         let dn: DistinguishedName = DistinguishedName {
@@ -1266,6 +1289,7 @@ mod test {
         Ok(())
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_dn() -> Result<(), Box<dyn std::error::Error>> {
         let expected: DistinguishedName = DistinguishedName {
