@@ -1,3 +1,7 @@
+## 0.5.1
+
+update dependencies
+
 ## 0.5.0
 
 ensure all the various feature combinations compile
