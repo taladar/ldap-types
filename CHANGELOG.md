@@ -1,3 +1,9 @@
+## 0.6.0
+
+add conversion traits and implementations and error types for use with new
+ldap-macros crate to allow ldap searches (via ldap-utils crate) to auto-convert
+types to Rust types
+
 ## 0.5.1
 
 update dependencies
