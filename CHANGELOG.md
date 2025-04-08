@@ -1,3 +1,7 @@
+## 0.6.1
+
+update depedencies
+
 ## 0.6.0
 
 add conversion traits and implementations and error types for use with new
