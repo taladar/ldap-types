@@ -304,7 +304,7 @@ pub enum KeyStringOrOID {
     /// this represents a [KeyString]
     #[cfg_attr(feature = "serde", serde(rename = "key_string"))]
     KeyString(KeyString),
-    /// this reprents an [ObjectIdentifier]
+    /// this represents an [ObjectIdentifier]
     #[cfg_attr(feature = "serde", serde(rename = "oid"))]
     OID(#[educe(Hash(method = "hash_oid"))] ObjectIdentifier),
 }
