@@ -4,9 +4,9 @@
 use chumsky::prelude::*;
 
 #[cfg(feature = "chumsky")]
-use lazy_static::lazy_static;
-#[cfg(feature = "chumsky")]
 use oid::ObjectIdentifier;
+#[cfg(feature = "chumsky")]
+use std::sync::LazyLock;
 
 #[cfg(feature = "chumsky")]
 use crate::basic::keystring_or_oid_parser;
@@ -26,13 +26,17 @@ use serde::{Deserialize, Serialize};
 /// <https://datatracker.ietf.org/doc/html/rfc2254#section-4>
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "this is meant to be used in modules with other search related types so filter is an important name component"
+)]
 pub enum LDAPSearchFilter {
     /// a boolean and operation applied to all the sub-filters
-    And(Vec<LDAPSearchFilter>),
+    And(Vec<Self>),
     /// a boolean or operation applied to all the sub-filters
-    Or(Vec<LDAPSearchFilter>),
+    Or(Vec<Self>),
     /// a boolean not operation applied to the sub-filter
-    Not(Box<LDAPSearchFilter>),
+    Not(Box<Self>),
     /// an equality match on the given attribute name and value
     Equal {
         /// attribute name or OID
@@ -84,18 +88,23 @@ impl LDAPSearchFilter {
     /// this is useful e.g. when comparing LDAP objects from different directories
     /// with different namingContext values
     #[cfg(feature = "chumsky")]
+    #[must_use]
     pub fn transform_base_dns(
         &self,
         source_base_dn: &str,
         destination_base_dn: &str,
         source_ldap_schema: &LDAPSchema,
     ) -> Self {
-        lazy_static! {
-            static ref DN_SYNTAX_OID: OIDWithLength = OIDWithLength {
-                oid: ObjectIdentifier::try_from("1.3.6.1.4.1.1466.115.121.1.12").unwrap(),
-                length: None
-            };
-        }
+        #[cfg(feature = "chumsky")]
+        static DN_SYNTAX_OID: LazyLock<OIDWithLength> = LazyLock::new(|| OIDWithLength {
+            #[expect(
+                clippy::expect_used,
+                reason = "This OID is hardcoded and known to be valid, if it fails to parse it's a critical programming error."
+            )]
+            oid: ObjectIdentifier::try_from("1.3.6.1.4.1.1466.115.121.1.12")
+                .expect("hardcoded OID is valid"),
+            length: None,
+        });
         match self {
             Self::And(filters) => Self::And(
                 filters
@@ -325,6 +334,7 @@ impl std::fmt::Display for LDAPSearchFilter {
                 write!(f, "(")?;
                 std::fmt::Display::fmt(&attribute_name, f)?;
                 write!(f, "=")?;
+                // here value can contain wildcards, unlike the very similar looking equality above
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
                 Ok(())
@@ -335,7 +345,9 @@ impl std::fmt::Display for LDAPSearchFilter {
 
 /// parses an equality match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_equal_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_equal_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(none_of(")*").repeated().collect::<String>()))
         .map(
@@ -350,7 +362,9 @@ pub fn search_equal_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simp
 
 /// parses an approximate match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_approx_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_approx_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just("=~").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -365,7 +379,9 @@ pub fn search_approx_parser() -> impl Parser<char, LDAPSearchFilter, Error = Sim
 
 /// parses a greater or equal match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_greater_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_greater_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just(">=").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -380,7 +396,9 @@ pub fn search_greater_parser() -> impl Parser<char, LDAPSearchFilter, Error = Si
 
 /// parses a less or equal match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_less_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_less_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just("<=").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(|(attribute_name, attribute_value)| LDAPSearchFilter::Less {
@@ -393,7 +411,9 @@ pub fn search_less_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simpl
 
 /// parses a present match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_present_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_present_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then_ignore(just("=*"))
         .map(|attribute_name| LDAPSearchFilter::Present { attribute_name })
@@ -403,7 +423,9 @@ pub fn search_present_parser() -> impl Parser<char, LDAPSearchFilter, Error = Si
 
 /// parses a substring match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_substring_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_substring_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -418,16 +440,18 @@ pub fn search_substring_parser() -> impl Parser<char, LDAPSearchFilter, Error = 
 
 /// parses an LDAP search filter expression
 #[cfg(feature = "chumsky")]
-pub fn search_filter_parser() -> impl Parser<char, LDAPSearchFilter, Error = Simple<char>> {
+#[must_use]
+pub fn search_filter_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     recursive::<_, _, _, _, _>(|inner| {
-        choice::<_, Simple<char>>((
+        choice((
             just('&')
-                .ignore_then(inner.clone().repeated().at_least(1))
+                .ignore_then(inner.clone().repeated().at_least(1).collect())
                 .delimited_by(just('('), just(')'))
                 .map(LDAPSearchFilter::And)
                 .labelled("search filter AND expression"),
             just('|')
-                .ignore_then(inner.clone().repeated().at_least(1))
+                .ignore_then(inner.clone().repeated().at_least(1).collect())
                 .delimited_by(just('('), just(')'))
                 .map(LDAPSearchFilter::Or)
                 .labelled("search filter OR expression"),
@@ -458,7 +482,9 @@ mod test {
     #[test]
     fn test_equal_filter_parser() {
         assert_eq!(
-            search_filter_parser().parse("(host=foo.bar.baz)".to_string()),
+            search_filter_parser()
+                .parse("(host=foo.bar.baz)")
+                .into_result(),
             Ok(LDAPSearchFilter::Equal {
                 attribute_name: KeyStringOrOID::KeyString(KeyString("host".to_string())),
                 attribute_value: "foo.bar.baz".to_string()
@@ -470,7 +496,9 @@ mod test {
     #[test]
     fn test_and_filter_parser() {
         assert_eq!(
-            search_filter_parser().parse("(&(host=foo.bar.baz)(port>=35))".to_string()),
+            search_filter_parser()
+                .parse("(&(host=foo.bar.baz)(port>=35))")
+                .into_result(),
             Ok(LDAPSearchFilter::And(vec![
                 LDAPSearchFilter::Equal {
                     attribute_name: KeyStringOrOID::KeyString(KeyString("host".to_string())),
@@ -488,7 +516,7 @@ mod test {
     #[test]
     fn test_substring_filter_parser() {
         assert_eq!(
-            search_filter_parser().parse("(uid=m*)".to_string()),
+            search_filter_parser().parse("(uid=m*)").into_result(),
             Ok(LDAPSearchFilter::Substring {
                 attribute_name: KeyStringOrOID::KeyString(KeyString("uid".to_string())),
                 attribute_value: "m*".to_string(),
@@ -500,7 +528,9 @@ mod test {
     #[test]
     fn test_present_filter_parser() {
         assert_eq!(
-            search_filter_parser().parse("(objectClass=*)".to_string()),
+            search_filter_parser()
+                .parse("(objectClass=*)")
+                .into_result(),
             Ok(LDAPSearchFilter::Present {
                 attribute_name: KeyStringOrOID::KeyString(KeyString("objectClass".to_string())),
             })
@@ -509,11 +539,13 @@ mod test {
 
     #[cfg(feature = "chumsky")]
     #[test]
+    #[expect(clippy::expect_used, reason = "intentional for assertion")]
     fn test_filter_parser_roundtrip() {
         let s = "(&(host=foo.bar.baz)(port>=35))".to_string();
         assert_eq!(
             search_filter_parser()
-                .parse(s.clone())
+                .parse(&s)
+                .into_result()
                 .expect("unexpected Err in roundtrip test")
                 .to_string(),
             s

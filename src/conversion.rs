@@ -120,7 +120,7 @@ impl FromStringLdapType for u8 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "u8".to_string(),
@@ -136,7 +136,7 @@ impl FromStringLdapType for i8 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "i8".to_string(),
@@ -152,7 +152,7 @@ impl FromStringLdapType for u16 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "u16".to_string(),
@@ -168,7 +168,7 @@ impl FromStringLdapType for i16 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "i16".to_string(),
@@ -184,7 +184,7 @@ impl FromStringLdapType for u32 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "u32".to_string(),
@@ -200,7 +200,7 @@ impl FromStringLdapType for i32 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "i32".to_string(),
@@ -216,7 +216,7 @@ impl FromStringLdapType for u64 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "u64".to_string(),
@@ -232,7 +232,7 @@ impl FromStringLdapType for i64 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "i64".to_string(),
@@ -248,7 +248,7 @@ impl FromStringLdapType for u128 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "u128".to_string(),
@@ -264,7 +264,7 @@ impl FromStringLdapType for i128 {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "i128".to_string(),
@@ -280,7 +280,7 @@ impl FromStringLdapType for usize {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "usize".to_string(),
@@ -296,7 +296,7 @@ impl FromStringLdapType for isize {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "isize".to_string(),
@@ -313,7 +313,7 @@ impl FromStringLdapType for crate::basic::DistinguishedName {
     where
         Self: Sized,
     {
-        <Self as std::str::FromStr>::from_str(&value).map_err(|_| UnexpectedStringValue {
+        <Self as std::str::FromStr>::from_str(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "DistinguishedName".to_string(),
@@ -329,7 +329,7 @@ impl FromStringLdapType for oid::ObjectIdentifier {
     where
         Self: Sized,
     {
-        <Self as TryFrom<&str>>::try_from(&value).map_err(|_| UnexpectedStringValue {
+        <Self as TryFrom<&str>>::try_from(&value).map_err(|_err| UnexpectedStringValue {
             source_entry_dn: entry_dn.to_owned(),
             source_attribute_name: attribute_name.to_owned(),
             conversion_target_name: "ObjectIdentifier".to_string(),
@@ -379,17 +379,16 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VecOfFromStringLdapTypeError::LdapShouldNotReturnBinaryResult {
+            Self::LdapShouldNotReturnBinaryResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports String inputs")
             }
-            VecOfFromStringLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from String: {}",
-                    err
+                    "encountered error converting a primitive value from String: {err}",
                 )
             }
         }
@@ -420,7 +419,7 @@ where
             .string_values
             .into_iter()
             .map(|v| <T as FromStringLdapType>::parse(&values.entry_dn, &values.attribute_name, v))
-            .collect::<Result<Vec<T>, <T as FromStringLdapType>::Error>>()
+            .collect::<Result<Self, <T as FromStringLdapType>::Error>>()
             .map_err(VecOfFromStringLdapTypeError::PrimitiveValueConversionError)
     }
 }
@@ -455,23 +454,22 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OptionOfFromStringLdapTypeError::LdapShouldNotReturnBinaryResult {
+            Self::LdapShouldNotReturnBinaryResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs")
             }
-            OptionOfFromStringLdapTypeError::LdapShouldNotReturnMultipleResults {
+            Self::LdapShouldNotReturnMultipleResults {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered multiple string values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs")
             }
-            OptionOfFromStringLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from String: {}",
-                    err
+                    "encountered error converting a primitive value from String: {err}",
                 )
             }
         }
@@ -553,24 +551,23 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RequiredFromStringLdapTypeError::LdapShouldNotReturnBinaryResult {
+            Self::LdapShouldNotReturnBinaryResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs")
             }
-            RequiredFromStringLdapTypeError::LdapShouldReturnExactlyOneResult {
+            Self::LdapShouldReturnExactlyOneResult {
                 entry_dn,
                 attribute_name,
                 count,
             } => {
                 write!(f, "encountered {count} string values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs")
             }
-            RequiredFromStringLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from String: {}",
-                    err
+                    "encountered error converting a primitive value from String: {err}",
                 )
             }
         }
@@ -709,17 +706,16 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VecOfFromBinaryLdapTypeError::LdapShouldNotReturnStringResult {
+            Self::LdapShouldNotReturnStringResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports binary inputs")
             }
-            VecOfFromBinaryLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from binary: {}",
-                    err
+                    "encountered error converting a primitive value from binary: {err}",
                 )
             }
         }
@@ -786,23 +782,22 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OptionOfFromBinaryLdapTypeError::LdapShouldNotReturnStringResult {
+            Self::LdapShouldNotReturnStringResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs")
             }
-            OptionOfFromBinaryLdapTypeError::LdapShouldNotReturnMultipleResults {
+            Self::LdapShouldNotReturnMultipleResults {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered multiple binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs")
             }
-            OptionOfFromBinaryLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from binary: {}",
-                    err
+                    "encountered error converting a primitive value from binary: {err}",
                 )
             }
         }
@@ -838,7 +833,7 @@ where
             );
         }
         if let Some(value) = values.binary_values.first() {
-            Ok(Binary(Some(
+            Ok(Self(Some(
                 <T as FromBinaryLdapType>::parse(
                     &values.entry_dn,
                     &values.attribute_name,
@@ -847,7 +842,7 @@ where
                 .map_err(OptionOfFromBinaryLdapTypeError::PrimitiveValueConversionError)?,
             )))
         } else {
-            Ok(Binary(None))
+            Ok(Self(None))
         }
     }
 }
@@ -884,24 +879,23 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RequiredFromBinaryLdapTypeError::LdapShouldNotReturnStringResult {
+            Self::LdapShouldNotReturnStringResult {
                 entry_dn,
                 attribute_name,
             } => {
                 write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs")
             }
-            RequiredFromBinaryLdapTypeError::LdapShouldReturnExactlyOneResult {
+            Self::LdapShouldReturnExactlyOneResult {
                 entry_dn,
                 attribute_name,
                 count,
             } => {
                 write!(f, "encountered {count} binary values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs")
             }
-            RequiredFromBinaryLdapTypeError::PrimitiveValueConversionError(err) => {
+            Self::PrimitiveValueConversionError(err) => {
                 write!(
                     f,
-                    "encountered error converting a primitive value from binary: {}",
-                    err
+                    "encountered error converting a primitive value from binary: {err}",
                 )
             }
         }

@@ -10,10 +10,10 @@ use educe::Educe;
 use enum_as_inner::EnumAsInner;
 use oid::ObjectIdentifier;
 
-use itertools::Itertools;
+use itertools::Itertools as _;
 
 #[cfg(feature = "chumsky")]
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 use crate::basic::{KeyString, KeyStringOrOID, OIDWithLength};
 
@@ -24,6 +24,157 @@ use crate::basic::{
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+/// possible tags in the LDAP schema syntax line
+#[cfg(feature = "chumsky")]
+static LDAP_SYNTAX_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new(|| {
+    vec![
+        LDAPSchemaTagDescriptor {
+            tag_name: "DESC".to_string(),
+            tag_type: LDAPSchemaTagType::String,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "X-BINARY-TRANSFER-REQUIRED".to_string(),
+            tag_type: LDAPSchemaTagType::Boolean,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "X-NOT-HUMAN-READABLE".to_string(),
+            tag_type: LDAPSchemaTagType::Boolean,
+        },
+    ]
+});
+
+/// possible tags in the LDAP schema matching rule line
+#[cfg(feature = "chumsky")]
+static MATCHING_RULE_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new(|| {
+    vec![
+        LDAPSchemaTagDescriptor {
+            tag_name: "NAME".to_string(),
+            tag_type: LDAPSchemaTagType::QuotedKeyStringList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SYNTAX".to_string(),
+            tag_type: LDAPSchemaTagType::OIDWithLength,
+        },
+    ]
+});
+
+/// possible tags in the LDAP schema matching rule use line
+#[cfg(feature = "chumsky")]
+static MATCHING_RULE_USE_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new(|| {
+    vec![
+        LDAPSchemaTagDescriptor {
+            tag_name: "NAME".to_string(),
+            tag_type: LDAPSchemaTagType::QuotedKeyStringList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "APPLIES".to_string(),
+            tag_type: LDAPSchemaTagType::KeyStringOrOIDList,
+        },
+    ]
+});
+
+/// possible tags in the LDAP schema attribute type line
+#[cfg(feature = "chumsky")]
+static ATTRIBUTE_TYPE_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new(|| {
+    vec![
+        LDAPSchemaTagDescriptor {
+            tag_name: "NAME".to_string(),
+            tag_type: LDAPSchemaTagType::QuotedKeyStringList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SUP".to_string(),
+            tag_type: LDAPSchemaTagType::KeyString,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "DESC".to_string(),
+            tag_type: LDAPSchemaTagType::String,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SYNTAX".to_string(),
+            tag_type: LDAPSchemaTagType::OIDWithLength,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "EQUALITY".to_string(),
+            tag_type: LDAPSchemaTagType::KeyString,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SUBSTR".to_string(),
+            tag_type: LDAPSchemaTagType::KeyString,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "ORDERING".to_string(),
+            tag_type: LDAPSchemaTagType::KeyString,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SINGLE-VALUE".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "NO-USER-MODIFICATION".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "USAGE".to_string(),
+            tag_type: LDAPSchemaTagType::KeyString,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "COLLECTIVE".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "OBSOLETE".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "X-ORDERED".to_string(),
+            tag_type: LDAPSchemaTagType::QuotedKeyString,
+        },
+    ]
+});
+
+/// possible tags in the LDAP schema object class line
+#[cfg(feature = "chumsky")]
+static OBJECT_CLASS_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new(|| {
+    vec![
+        LDAPSchemaTagDescriptor {
+            tag_name: "NAME".to_string(),
+            tag_type: LDAPSchemaTagType::QuotedKeyStringList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "SUP".to_string(),
+            tag_type: LDAPSchemaTagType::KeyStringOrOIDList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "DESC".to_string(),
+            tag_type: LDAPSchemaTagType::String,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "ABSTRACT".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "STRUCTURAL".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "AUXILIARY".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "MUST".to_string(),
+            tag_type: LDAPSchemaTagType::KeyStringOrOIDList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "MAY".to_string(),
+            tag_type: LDAPSchemaTagType::KeyStringOrOIDList,
+        },
+        LDAPSchemaTagDescriptor {
+            tag_name: "OBSOLETE".to_string(),
+            tag_type: LDAPSchemaTagType::Standalone,
+        },
+    ]
+});
 
 /// stores the parameter values that can appear behind a tag in an LDAP schema entry
 #[derive(Clone, Debug, EnumAsInner, Educe)]
@@ -103,12 +254,12 @@ pub struct LDAPSchemaTagDescriptor {
 
 /// this parses the LDAP schema tag value that is described by its parameter
 #[cfg(feature = "chumsky")]
-pub fn ldap_schema_tag_value_parser(
+pub fn ldap_schema_tag_value_parser<'src>(
     tag_type: &LDAPSchemaTagType,
-) -> impl Parser<char, LDAPSchemaTagValue, Error = Simple<char>> {
+) -> impl Parser<'src, &'src str, LDAPSchemaTagValue, extra::Err<Rich<'src, char>>> {
     match tag_type {
         LDAPSchemaTagType::Standalone => empty()
-            .map(|_| LDAPSchemaTagValue::Standalone)
+            .map(|()| LDAPSchemaTagValue::Standalone)
             .labelled("no value")
             .boxed(),
         LDAPSchemaTagType::OID => oid_parser()
@@ -118,12 +269,13 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::OIDWithLength => oid_parser()
             .then(
                 digits(10)
+                    .collect::<String>()
                     .delimited_by(just('{'), just('}'))
                     .try_map(|x, span| {
                         x.parse().map_err(|e| {
-                            Simple::custom(
+                            Rich::custom(
                                 span,
-                                format!("Failed to convert parsed digits to integer: {}", e),
+                                format!("Failed to convert parsed digits to integer: {e}"),
                             )
                         })
                     })
@@ -134,8 +286,8 @@ pub fn ldap_schema_tag_value_parser(
             .boxed(),
         LDAPSchemaTagType::String => none_of("'")
             .repeated()
-            .delimited_by(just('\''), just('\''))
             .collect::<String>()
+            .delimited_by(just('\''), just('\''))
             .map(LDAPSchemaTagValue::String)
             .labelled("single-quoted string")
             .boxed(),
@@ -161,6 +313,7 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::KeyStringOrOIDList => keystring_or_oid_parser()
             .padded()
             .separated_by(just('$'))
+            .collect()
             .delimited_by(just('('), just(')'))
             .or(keystring_or_oid_parser().map(|x| vec![x]))
             .map(LDAPSchemaTagValue::KeyStringOrOIDList)
@@ -169,6 +322,7 @@ pub fn ldap_schema_tag_value_parser(
         LDAPSchemaTagType::QuotedKeyStringList => quoted_keystring_parser()
             .padded()
             .repeated()
+            .collect()
             .delimited_by(just('('), just(')'))
             .or(quoted_keystring_parser().map(|x| vec![x]))
             .map(LDAPSchemaTagValue::QuotedKeyStringList)
@@ -179,9 +333,10 @@ pub fn ldap_schema_tag_value_parser(
 
 /// this parses an LDAP schema tag described by its parameter
 #[cfg(feature = "chumsky")]
-pub fn ldap_schema_tag_parser(
-    tag_descriptor: &LDAPSchemaTagDescriptor,
-) -> impl Parser<char, LDAPSchemaTag, Error = Simple<char>> + '_ {
+#[must_use]
+pub fn ldap_schema_tag_parser<'src>(
+    tag_descriptor: &'src LDAPSchemaTagDescriptor,
+) -> impl Parser<'src, &'src str, LDAPSchemaTag, extra::Err<Rich<'src, char>>> + 'src {
     just(tag_descriptor.tag_name.to_owned())
         .padded()
         .ignore_then(ldap_schema_tag_value_parser(&tag_descriptor.tag_type).padded())
@@ -197,10 +352,20 @@ pub fn ldap_schema_tag_parser(
 ///
 /// this function only parses the tags, it does not check if required tags
 /// exist in the output
+///
+/// # Panics
+///
+/// This panics when the tag_descriptors parameter is empty
 #[cfg(feature = "chumsky")]
-pub fn ldap_schema_parser(
-    tag_descriptors: &[LDAPSchemaTagDescriptor],
-) -> impl Parser<char, (ObjectIdentifier, Vec<LDAPSchemaTag>), Error = Simple<char>> + '_ {
+#[must_use]
+pub fn ldap_schema_parser<'src>(
+    tag_descriptors: &'src [LDAPSchemaTagDescriptor],
+) -> impl Parser<'src, &'src str, (ObjectIdentifier, Vec<LDAPSchemaTag>), extra::Err<Rich<'src, char>>>
+       + 'src {
+    #[expect(
+        clippy::expect_used,
+        reason = "this fails essentially based on the contents of the tag_descriptors parameter only and chumsky offers no good way to return this type of error"
+    )]
     let (first, rest) = tag_descriptors
         .split_first()
         .expect("tag descriptors must have at least one element");
@@ -211,25 +376,30 @@ pub fn ldap_schema_parser(
                     p.or(ldap_schema_tag_parser(td)).boxed()
                 })
                 .padded()
-                .repeated(),
+                .repeated()
+                .collect(),
         )
         .padded()
         .delimited_by(just('('), just(')'))
 }
 
 /// this is used to extract a required tag's value from the result of [ldap_schema_parser]
+///
+/// # Errors
+///
+/// returns an error if the required tag was not found in schema tag list
 #[cfg(feature = "chumsky")]
-pub fn required_tag(
+pub fn required_tag<'src>(
     tag_name: &str,
-    span: &std::ops::Range<usize>,
+    span: &SimpleSpan,
     tags: &[LDAPSchemaTag],
-) -> Result<LDAPSchemaTagValue, Simple<char>> {
+) -> Result<LDAPSchemaTagValue, Rich<'src, char>> {
     tags.iter()
         .find(|x| x.tag_name == tag_name)
         .ok_or_else(|| {
-            Simple::custom(
-                span.clone(),
-                format!("No {} tag in parsed LDAP schema tag list", tag_name),
+            Rich::custom(
+                *span,
+                format!("No {tag_name} tag in parsed LDAP schema tag list"),
             )
         })
         .map(|x| x.tag_value.to_owned())
@@ -237,6 +407,7 @@ pub fn required_tag(
 
 /// this is used to extract an optional tag's value from the result of [ldap_schema_parser]
 #[cfg(feature = "chumsky")]
+#[must_use]
 pub fn optional_tag(tag_name: &str, tags: &[LDAPSchemaTag]) -> Option<LDAPSchemaTagValue> {
     tags.iter()
         .find(|x| x.tag_name == tag_name)
@@ -278,38 +449,31 @@ impl std::fmt::Debug for LDAPSyntax {
 ///
 /// <https://ldapwiki.com/wiki/LDAPSyntaxes>
 #[cfg(feature = "chumsky")]
-pub fn ldap_syntax_parser() -> impl Parser<char, LDAPSyntax, Error = Simple<char>> {
-    lazy_static! {
-        static ref LDAP_SYNTAX_TAGS: Vec<LDAPSchemaTagDescriptor> = vec![
-            LDAPSchemaTagDescriptor {
-                tag_name: "DESC".to_string(),
-                tag_type: LDAPSchemaTagType::String
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "X-BINARY-TRANSFER-REQUIRED".to_string(),
-                tag_type: LDAPSchemaTagType::Boolean
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "X-NOT-HUMAN-READABLE".to_string(),
-                tag_type: LDAPSchemaTagType::Boolean
-            },
-        ];
-    }
+#[must_use]
+pub fn ldap_syntax_parser<'src>(
+) -> impl Parser<'src, &'src str, LDAPSyntax, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&LDAP_SYNTAX_TAGS).try_map(|(oid, tags), span| {
         Ok(LDAPSyntax {
             oid,
             desc: required_tag("DESC", &span, &tags)?
                 .as_string()
-                .unwrap()
+                .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))?
                 .to_string(),
             x_binary_transfer_required: *optional_tag("X-BINARY-TRANSFER-REQUIRED", &tags)
                 .unwrap_or(LDAPSchemaTagValue::Boolean(false))
                 .as_boolean()
-                .unwrap(),
+                .ok_or_else(|| {
+                    Rich::custom(
+                        span,
+                        "X-BINARY-TRANSFER_REQUIRED parameter should be a boolean",
+                    )
+                })?,
             x_not_human_readable: *optional_tag("X-NOT-HUMAN-READABLE", &tags)
                 .unwrap_or(LDAPSchemaTagValue::Boolean(false))
                 .as_boolean()
-                .unwrap(),
+                .ok_or_else(|| {
+                    Rich::custom(span, "X-NOT_HUMAN_READABLE parameter should be a boolean")
+                })?,
         })
     })
 }
@@ -343,29 +507,26 @@ impl std::fmt::Debug for MatchingRule {
 
 /// parse a matching rule LDAP schema entry
 #[cfg(feature = "chumsky")]
-pub fn matching_rule_parser() -> impl Parser<char, MatchingRule, Error = Simple<char>> {
-    lazy_static! {
-        static ref MATCHING_RULE_TAGS: Vec<LDAPSchemaTagDescriptor> = vec![
-            LDAPSchemaTagDescriptor {
-                tag_name: "NAME".to_string(),
-                tag_type: LDAPSchemaTagType::QuotedKeyStringList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SYNTAX".to_string(),
-                tag_type: LDAPSchemaTagType::OIDWithLength
-            },
-        ];
-    }
+#[must_use]
+pub fn matching_rule_parser<'src>(
+) -> impl Parser<'src, &'src str, MatchingRule, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&MATCHING_RULE_TAGS).try_map(|(oid, tags), span| {
         Ok(MatchingRule {
             oid,
             name: required_tag("NAME", &span, &tags)?
                 .as_quoted_key_string_list()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(span, "NAME parameter should be a quoted keystring list")
+                })?
                 .to_vec(),
             syntax: required_tag("SYNTAX", &span, &tags)?
                 .as_oid_with_length()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(
+                        span,
+                        "SYNTAX parameter should be an OID with an optional length",
+                    )
+                })?
                 .to_owned(),
         })
     })
@@ -400,29 +561,23 @@ impl std::fmt::Debug for MatchingRuleUse {
 
 /// parse a matching rule use LDAP schema entry
 #[cfg(feature = "chumsky")]
-pub fn matching_rule_use_parser() -> impl Parser<char, MatchingRuleUse, Error = Simple<char>> {
-    lazy_static! {
-        static ref MATCHING_RULE_USE_TAGS: Vec<LDAPSchemaTagDescriptor> = vec![
-            LDAPSchemaTagDescriptor {
-                tag_name: "NAME".to_string(),
-                tag_type: LDAPSchemaTagType::QuotedKeyStringList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "APPLIES".to_string(),
-                tag_type: LDAPSchemaTagType::KeyStringOrOIDList
-            },
-        ];
-    }
+#[must_use]
+pub fn matching_rule_use_parser<'src>(
+) -> impl Parser<'src, &'src str, MatchingRuleUse, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&MATCHING_RULE_USE_TAGS).try_map(|(oid, tags), span| {
         Ok(MatchingRuleUse {
             oid,
             name: required_tag("NAME", &span, &tags)?
                 .as_quoted_key_string_list()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(span, "NAME parameter should be a quoted keystring list")
+                })?
                 .to_vec(),
             applies: required_tag("APPLIES", &span, &tags)?
                 .as_key_string_or_oid_list()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(span, "APPLIES parameter should be a keystring or OID list")
+                })?
                 .to_vec(),
         })
     })
@@ -434,6 +589,10 @@ pub fn matching_rule_use_parser() -> impl Parser<char, MatchingRuleUse, Error = 
 #[derive(Clone, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(PartialEq, Eq, Hash)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "this is the LDAP schema, we can not refactor this easily"
+)]
 pub struct AttributeType {
     /// the OID of the attribute type
     #[educe(Hash(method = "crate::basic::hash_oid"))]
@@ -503,86 +662,53 @@ impl std::fmt::Debug for AttributeType {
 
 /// parser for attribute type LDAP schema entries
 #[cfg(feature = "chumsky")]
-pub fn attribute_type_parser() -> impl Parser<char, AttributeType, Error = Simple<char>> {
-    lazy_static! {
-        static ref ATTRIBUTE_TYPE_TAGS: Vec<LDAPSchemaTagDescriptor> = vec![
-            LDAPSchemaTagDescriptor {
-                tag_name: "NAME".to_string(),
-                tag_type: LDAPSchemaTagType::QuotedKeyStringList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SUP".to_string(),
-                tag_type: LDAPSchemaTagType::KeyString
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "DESC".to_string(),
-                tag_type: LDAPSchemaTagType::String
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SYNTAX".to_string(),
-                tag_type: LDAPSchemaTagType::OIDWithLength
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "EQUALITY".to_string(),
-                tag_type: LDAPSchemaTagType::KeyString
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SUBSTR".to_string(),
-                tag_type: LDAPSchemaTagType::KeyString
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "ORDERING".to_string(),
-                tag_type: LDAPSchemaTagType::KeyString
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SINGLE-VALUE".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "NO-USER-MODIFICATION".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "USAGE".to_string(),
-                tag_type: LDAPSchemaTagType::KeyString
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "COLLECTIVE".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "OBSOLETE".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "X-ORDERED".to_string(),
-                tag_type: LDAPSchemaTagType::QuotedKeyString
-            },
-        ];
-    }
+#[must_use]
+pub fn attribute_type_parser<'src>(
+) -> impl Parser<'src, &'src str, AttributeType, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&ATTRIBUTE_TYPE_TAGS).try_map(|(oid, tags), span| {
         Ok(AttributeType {
             oid,
             name: required_tag("NAME", &span, &tags)?
                 .as_quoted_key_string_list()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(span, "NAME parameter should be a quoted keystring list")
+                })?
                 .to_vec(),
-            sup: optional_tag("SUP", &tags).map(|s| s.as_key_string().unwrap().to_owned()),
-            desc: optional_tag("DESC", &tags).map(|v| v.as_string().unwrap().to_string()),
+            sup: optional_tag("SUP", &tags)
+                .map(|s| s.as_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| Rich::custom(span, "SUP parameter should be a key string"))?,
+            desc: optional_tag("DESC", &tags)
+                .map(|s| s.as_string().map(|i| i.to_string()))
+                .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))?,
             syntax: optional_tag("SYNTAX", &tags)
-                .map(|v| v.as_oid_with_length().unwrap().to_owned()),
+                .map(|s| s.as_oid_with_length().map(|i| i.to_owned()))
+                .ok_or_else(|| {
+                    Rich::custom(
+                        span,
+                        "SYNTAX parameter should be an OID with an optional length",
+                    )
+                })?,
             single_value: optional_tag("SINGLE-VALUE", &tags).is_some(),
             equality: optional_tag("EQUALITY", &tags)
-                .map(|s| s.as_key_string().unwrap().to_owned()),
-            substr: optional_tag("SUBSTR", &tags).map(|s| s.as_key_string().unwrap().to_owned()),
+                .map(|s| s.as_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| Rich::custom(span, "EQUALITY parameter should be a key string"))?,
+            substr: optional_tag("SUBSTR", &tags)
+                .map(|s| s.as_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| Rich::custom(span, "SUBSTR parameter should be a key string"))?,
             ordering: optional_tag("ORDERING", &tags)
-                .map(|s| s.as_key_string().unwrap().to_owned()),
+                .map(|s| s.as_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| Rich::custom(span, "ORDERING parameter should be a key string"))?,
             no_user_modification: optional_tag("NO-USER-MODIFICATION", &tags).is_some(),
-            usage: optional_tag("USAGE", &tags).map(|s| s.as_key_string().unwrap().to_owned()),
+            usage: optional_tag("USAGE", &tags)
+                .map(|s| s.as_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| Rich::custom(span, "USAGE parameter should be a key string"))?,
             collective: optional_tag("COLLECTIVE", &tags).is_some(),
             obsolete: optional_tag("OBSOLETE", &tags).is_some(),
             x_ordered: optional_tag("X-ORDERED", &tags)
-                .map(|s| s.as_quoted_key_string().unwrap().to_owned()),
+                .map(|s| s.as_quoted_key_string().map(|i| i.to_owned()))
+                .ok_or_else(|| {
+                    Rich::custom(span, "X-ORDERED parameter should be a quoted key string")
+                })?,
         })
     })
 }
@@ -646,68 +772,43 @@ impl std::fmt::Debug for ObjectClass {
 
 /// parses an LDAP schema object class entry
 #[cfg(feature = "chumsky")]
-pub fn object_class_parser() -> impl Parser<char, ObjectClass, Error = Simple<char>> {
-    lazy_static! {
-        static ref OBJECT_CLASS_TAGS: Vec<LDAPSchemaTagDescriptor> = vec![
-            LDAPSchemaTagDescriptor {
-                tag_name: "NAME".to_string(),
-                tag_type: LDAPSchemaTagType::QuotedKeyStringList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "SUP".to_string(),
-                tag_type: LDAPSchemaTagType::KeyStringOrOIDList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "DESC".to_string(),
-                tag_type: LDAPSchemaTagType::String
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "ABSTRACT".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "STRUCTURAL".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "AUXILIARY".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "MUST".to_string(),
-                tag_type: LDAPSchemaTagType::KeyStringOrOIDList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "MAY".to_string(),
-                tag_type: LDAPSchemaTagType::KeyStringOrOIDList
-            },
-            LDAPSchemaTagDescriptor {
-                tag_name: "OBSOLETE".to_string(),
-                tag_type: LDAPSchemaTagType::Standalone
-            },
-        ];
-    }
+#[must_use]
+pub fn object_class_parser<'src>(
+) -> impl Parser<'src, &'src str, ObjectClass, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&OBJECT_CLASS_TAGS).try_map(|(oid, tags), span| {
         Ok(ObjectClass {
             oid,
             name: required_tag("NAME", &span, &tags)?
                 .as_quoted_key_string_list()
-                .unwrap()
+                .ok_or_else(|| {
+                    Rich::custom(span, "NAME parameter should be a quoted keystring list")
+                })?
                 .to_vec(),
             sup: optional_tag("SUP", &tags)
-                .map(|s| s.as_key_string_or_oid_list().unwrap().to_owned())
+                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
+                .ok_or_else(|| {
+                    Rich::custom(span, "SUP parameter should be a key string or OID list")
+                })?
                 .unwrap_or_default(),
-            desc: optional_tag("DESC", &tags).map(|v| v.as_string().unwrap().to_string()),
+            desc: optional_tag("DESC", &tags)
+                .map(|s| s.as_string().map(|i| i.to_string()))
+                .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))?,
             object_class_type: optional_tag("ABSTRACT", &tags)
                 .map(|_| ObjectClassType::Abstract)
                 .or_else(|| optional_tag("STRUCTURAL", &tags).map(|_| ObjectClassType::Structural))
                 .or_else(|| optional_tag("AUXILIARY", &tags).map(|_| ObjectClassType::Auxiliary))
                 .unwrap_or(ObjectClassType::Structural),
             must: optional_tag("MUST", &tags)
-                .map(|v| v.as_key_string_or_oid_list().unwrap().to_vec())
+                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
+                .ok_or_else(|| {
+                    Rich::custom(span, "MUST parameter should be a key string or OID list")
+                })?
                 .unwrap_or_default(),
             may: optional_tag("MAY", &tags)
-                .map(|v| v.as_key_string_or_oid_list().unwrap().to_vec())
+                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
+                .ok_or_else(|| {
+                    Rich::custom(span, "MAY parameter should be a key string or OID list")
+                })?
                 .unwrap_or_default(),
             obsolete: optional_tag("OBSOLETE", &tags).is_some(),
         })
@@ -717,6 +818,10 @@ pub fn object_class_parser() -> impl Parser<char, ObjectClass, Error = Simple<ch
 /// an entire LDAP schema for an LDAP server
 #[derive(Debug, Clone, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "without schema it would just be LDAP which is probably not a good name to use anywhere when working with LDAP"
+)]
 pub struct LDAPSchema {
     /// the supported LDAP syntaxes
     pub ldap_syntaxes: Vec<LDAPSyntax>,
@@ -765,7 +870,7 @@ impl LDAPSchema {
     ) -> Option<HashSet<&AttributeType>> {
         if let Some(object_class) = self.find_object_class(id) {
             let mut result = HashSet::new();
-            for attribute_name in object_class.must.iter() {
+            for attribute_name in &object_class.must {
                 if let Some(attribute) = self.find_attribute_type(attribute_name) {
                     result.insert(attribute);
                 }
@@ -920,14 +1025,17 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax() {
-        assert!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )").is_ok());
+        #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+        ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )").into_result().unwrap();
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value1() {
-        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )"),
-            Ok(LDAPSyntax { oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
+        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' X-NOT-HUMAN-READABLE 'TRUE' )").into_result(),
+            Ok(LDAPSyntax {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
                          desc: "Certificate".to_string(),
                          x_binary_transfer_required: true,
                          x_not_human_readable: true,
@@ -938,8 +1046,10 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value2() {
-        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-NOT-HUMAN-READABLE 'TRUE' X-BINARY-TRANSFER-REQUIRED 'TRUE' )"),
-            Ok(LDAPSyntax { oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
+        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-NOT-HUMAN-READABLE 'TRUE' X-BINARY-TRANSFER-REQUIRED 'TRUE' )").into_result(),
+            Ok(LDAPSyntax {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
                          desc: "Certificate".to_string(),
                          x_binary_transfer_required: true,
                          x_not_human_readable: true,
@@ -950,8 +1060,10 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_value3() {
-        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' )"),
-            Ok(LDAPSyntax { oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
+        assert_eq!(ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-BINARY-TRANSFER-REQUIRED 'TRUE' )").into_result(),
+            Ok(LDAPSyntax {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                oid: "1.3.6.1.4.1.1466.115.121.1.8".to_string().try_into().unwrap(),
                          desc: "Certificate".to_string(),
                          x_binary_transfer_required: true,
                          x_not_human_readable: false,
@@ -965,8 +1077,9 @@ mod test {
         assert_eq!(
             ldap_syntax_parser().parse(
                 "( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' X-NOT-HUMAN-READABLE 'TRUE' )"
-            ),
+            ).into_result(),
             Ok(LDAPSyntax {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
                 oid: "1.3.6.1.4.1.1466.115.121.1.8"
                     .to_string()
                     .try_into()
@@ -982,8 +1095,11 @@ mod test {
     #[test]
     fn test_parse_ldap_syntax_value5() {
         assert_eq!(
-            ldap_syntax_parser().parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' )"),
+            ldap_syntax_parser()
+                .parse("( 1.3.6.1.4.1.1466.115.121.1.8 DESC 'Certificate' )")
+                .into_result(),
             Ok(LDAPSyntax {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
                 oid: "1.3.6.1.4.1.1466.115.121.1.8"
                     .to_string()
                     .try_into()
@@ -998,17 +1114,21 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_ldap_syntax_desc_required() {
-        assert!(ldap_syntax_parser()
+        #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+        ldap_syntax_parser()
             .parse("( 1.3.6.1.4.1.1466.115.121.1.8 )")
-            .is_err());
+            .into_result()
+            .unwrap_err();
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule() {
-        assert!(matching_rule_parser()
+        #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+        matching_rule_parser()
             .parse("( 1.3.6.1.1.16.3 NAME 'UUIDOrderingMatch' SYNTAX 1.3.6.1.1.16.1 )")
-            .is_ok());
+            .into_result()
+            .unwrap();
     }
 
     #[cfg(feature = "chumsky")]
@@ -1016,11 +1136,14 @@ mod test {
     fn test_parse_matching_rule_value() {
         assert_eq!(
             matching_rule_parser()
-                .parse("( 1.3.6.1.1.16.3 NAME 'UUIDOrderingMatch' SYNTAX 1.3.6.1.1.16.1 )"),
+                .parse("( 1.3.6.1.1.16.3 NAME 'UUIDOrderingMatch' SYNTAX 1.3.6.1.1.16.1 )")
+                .into_result(),
             Ok(MatchingRule {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
                 oid: "1.3.6.1.1.16.3".to_string().try_into().unwrap(),
                 name: vec![KeyString("UUIDOrderingMatch".to_string())],
                 syntax: OIDWithLength {
+                    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
                     oid: "1.3.6.1.1.16.1".to_string().try_into().unwrap(),
                     length: None
                 },
@@ -1031,14 +1154,17 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_uses() {
-        assert!(matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )").is_ok());
+        #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+        matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )").into_result().unwrap();
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_matching_rule_uses_value() {
-        assert_eq!(matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )"),
-            Ok(MatchingRuleUse { oid: "2.5.13.11".to_string().try_into().unwrap(),
+        assert_eq!(matching_rule_use_parser().parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES ( postalAddress $ registeredAddress $ homePostalAddress ) )").into_result(),
+            Ok(MatchingRuleUse {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                oid: "2.5.13.11".to_string().try_into().unwrap(),
                                  name: vec![KeyString("caseIgnoreListMatch".to_string())],
                                  applies: vec![KeyStringOrOID::KeyString(KeyString("postalAddress".to_string())),
                                                KeyStringOrOID::KeyString(KeyString("registeredAddress".to_string())),
@@ -1053,8 +1179,10 @@ mod test {
     fn test_parse_matching_rule_uses_single_applies_value() {
         assert_eq!(
             matching_rule_use_parser()
-                .parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES postalAddress )"),
+                .parse("( 2.5.13.11 NAME 'caseIgnoreListMatch' APPLIES postalAddress )")
+                .into_result(),
             Ok(MatchingRuleUse {
+                #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
                 oid: "2.5.13.11".to_string().try_into().unwrap(),
                 name: vec![KeyString("caseIgnoreListMatch".to_string())],
                 applies: vec![KeyStringOrOID::KeyString(KeyString(

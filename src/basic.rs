@@ -1,26 +1,25 @@
 //! Contains al the basic LDAP types
 use std::{
     collections::{HashMap, HashSet},
-    convert::TryFrom,
     hash::{Hash, Hasher},
 };
 
 use educe::Educe;
 use oid::ObjectIdentifier;
 
-use enum_as_inner::EnumAsInner;
-
 #[cfg(feature = "chumsky")]
 use chumsky::{prelude::*, text::digits};
 
 #[cfg(feature = "chumsky")]
-use itertools::Itertools;
+use itertools::Itertools as _;
 
 #[cfg(feature = "chumsky")]
-use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
+use ariadne::{Color, Fmt as _, Label, Report, ReportKind, Source};
 
 #[cfg(feature = "serde")]
-use serde::{de::SeqAccess, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::SeqAccess, ser::SerializeSeq as _, Deserialize, Deserializer, Serialize, Serializer,
+};
 
 #[cfg(feature = "diff")]
 use diff::Diff;
@@ -30,17 +29,17 @@ use diff::Diff;
 /// implementations
 #[cfg(feature = "chumsky")]
 #[derive(Debug)]
-pub struct ChumskyError {
+pub struct ChumskyError<E> {
     /// description of the object we were trying to parse
     pub description: String,
     /// source string for parsing
     pub source: String,
     /// errors encountered during parsing
-    pub errors: Vec<chumsky::error::Simple<char>>,
+    pub errors: Vec<E>,
 }
 
 #[cfg(feature = "chumsky")]
-impl std::fmt::Display for ChumskyError {
+impl std::fmt::Display for ChumskyError<chumsky::error::Rich<'static, char>> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for e in &self.errors {
             let msg = format!(
@@ -51,50 +50,39 @@ impl std::fmt::Display for ChumskyError {
                 } else {
                     "Unexpected end of input"
                 },
-                if let Some(label) = e.label() {
-                    format!(" while parsing {}", label)
-                } else {
-                    String::new()
-                },
+                format_args!(" while parsing {:?}", e.contexts().collect::<Vec<_>>()),
                 if e.expected().len() == 0 {
                     "end of input".to_string()
                 } else {
                     e.expected()
-                        .map(|expected| match expected {
-                            Some(expected) => expected.to_string(),
-                            None => "end of input".to_string(),
-                        })
+                        .map(|rich_pattern| rich_pattern.to_string())
                         .collect::<Vec<_>>()
                         .join(", ")
                 },
             );
 
-            let report = Report::build(ReportKind::Error, e.span())
+            let report = Report::build(ReportKind::Error, e.span().start..e.span().end)
                 .with_code(3)
                 .with_message(msg)
                 .with_label(
-                    Label::new(e.span())
+                    Label::new(e.span().start..e.span().end)
                         .with_message(format!(
                             "Unexpected {}",
-                            e.found()
-                                .map(|c| format!("token {}", c.fg(Color::Red)))
-                                .unwrap_or_else(|| "end of input".to_string())
+                            e.found().map_or_else(
+                                || "end of input".to_string(),
+                                |c| format!("token {}", c.fg(Color::Red))
+                            )
                         ))
                         .with_color(Color::Red),
                 );
 
             let report = match e.reason() {
-                chumsky::error::SimpleReason::Unclosed { span, delimiter } => report.with_label(
-                    Label::new(span.clone())
-                        .with_message(format!(
-                            "Unclosed delimiter {}",
-                            delimiter.fg(Color::Yellow)
-                        ))
-                        .with_color(Color::Yellow),
-                ),
-                chumsky::error::SimpleReason::Unexpected => report,
-                chumsky::error::SimpleReason::Custom(msg) => report.with_label(
-                    Label::new(e.span())
+                chumsky::error::RichReason::ExpectedFound {
+                    expected: _,
+                    found: _,
+                } => report,
+                chumsky::error::RichReason::Custom(msg) => report.with_label(
+                    Label::new(e.span().start..e.span().end)
                         .with_message(format!("{}", msg.fg(Color::Yellow)))
                         .with_color(Color::Yellow),
                 ),
@@ -104,16 +92,21 @@ impl std::fmt::Display for ChumskyError {
             report
                 .finish()
                 .write(Source::from(&self.source), &mut s)
-                .map_err(|_| <std::fmt::Error as std::default::Default>::default())?;
-            let s = std::str::from_utf8(&s).expect("Expected ariadne to generate valid UTF-8");
-            write!(f, "{}", s)?;
+                .map_err(|_err| <std::fmt::Error as std::default::Default>::default())?;
+            let s = std::str::from_utf8(&s)
+                .map_err(|_err| <std::fmt::Error as std::default::Default>::default())?;
+            write!(f, "{s}")?;
         }
         Ok(())
     }
 }
 
 #[cfg(feature = "chumsky")]
-impl std::error::Error for ChumskyError {
+impl<E> std::error::Error for ChumskyError<E>
+where
+    E: std::fmt::Debug,
+    Self: std::fmt::Display,
+{
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -203,13 +196,19 @@ impl std::fmt::Debug for RootDSE {
 
 /// chumsky parser for [oid::ObjectIdentifier]
 #[cfg(feature = "chumsky")]
-pub fn oid_parser() -> impl Parser<char, ObjectIdentifier, Error = Simple<char>> {
-    digits(10).separated_by(just('.')).try_map(|x, span| {
-        x.into_iter()
-            .join(".")
-            .try_into()
-            .map_err(|e| Simple::custom(span, format!("{:?}", e)))
-    })
+#[must_use]
+pub fn oid_parser<'src>(
+) -> impl Parser<'src, &'src str, ObjectIdentifier, extra::Err<Rich<'src, char>>> {
+    digits(10)
+        .collect::<String>()
+        .separated_by(just('.'))
+        .collect::<Vec<_>>()
+        .try_map(|x, span| {
+            x.into_iter()
+                .join(".")
+                .try_into()
+                .map_err(|e| Rich::custom(span, format!("{e:?}")))
+        })
 }
 
 /// a key string is a string limited to the characters that are safe to use
@@ -231,24 +230,26 @@ impl KeyString {
     ///
     /// not perfect but it is useful when trying to figure out how string LDAP
     /// attributes need to be compared
+    #[must_use]
     pub fn describes_case_insensitive_match(&self) -> bool {
         match self {
-            KeyString(s) if s == "objectIdentifierMatch" => true,
-            KeyString(s) if s == "caseIgnoreMatch" => true,
-            KeyString(s) if s == "caseIgnoreListMatch" => true,
-            KeyString(s) if s == "caseIgnoreIA5Match" => true,
-            KeyString(s) if s == "caseIgnoreListSubstringsMatch" => true,
-            KeyString(s) if s == "caseIgnoreSubstringsMatch" => true,
-            KeyString(s) if s == "caseIgnoreOrderingMatch" => true,
-            KeyString(s) if s == "caseIgnoreIA5SubstringsMatch" => true,
+            Self(s) if s == "objectIdentifierMatch" => true,
+            Self(s) if s == "caseIgnoreMatch" => true,
+            Self(s) if s == "caseIgnoreListMatch" => true,
+            Self(s) if s == "caseIgnoreIA5Match" => true,
+            Self(s) if s == "caseIgnoreListSubstringsMatch" => true,
+            Self(s) if s == "caseIgnoreSubstringsMatch" => true,
+            Self(s) if s == "caseIgnoreOrderingMatch" => true,
+            Self(s) if s == "caseIgnoreIA5SubstringsMatch" => true,
             _ => false,
         }
     }
 
     /// converts the KeyString to lowercase
-    pub fn to_lowercase(&self) -> KeyString {
-        let KeyString(s) = self;
-        KeyString(s.to_lowercase())
+    #[must_use]
+    pub fn to_lowercase(&self) -> Self {
+        let Self(s) = self;
+        Self(s.to_lowercase())
     }
 }
 
@@ -276,16 +277,25 @@ impl TryFrom<&KeyStringOrOID> for KeyString {
 
 /// parses a [KeyString]
 #[cfg(feature = "chumsky")]
-pub fn keystring_parser() -> impl Parser<char, KeyString, Error = Simple<char>> {
-    filter(|c: &char| c.is_ascii_alphabetic())
-        .chain(filter(|c: &char| c.is_ascii_alphanumeric() || *c == '-' || *c == ';').repeated())
-        .collect::<String>()
+pub fn keystring_parser<'src>(
+) -> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
+    any()
+        .filter(|c: &char| c.is_ascii_alphabetic())
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_alphanumeric() || *c == '-' || *c == ';')
+                .repeated()
+                .collect::<String>(),
+        )
+        .map(|(c, rest)| format!("{c}{rest}"))
         .map(KeyString)
 }
 
 /// parses a [KeyString] in locations where it is single-quoted
 #[cfg(feature = "chumsky")]
-pub fn quoted_keystring_parser() -> impl Parser<char, KeyString, Error = Simple<char>> {
+#[must_use]
+pub fn quoted_keystring_parser<'src>(
+) -> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
     keystring_parser().delimited_by(just('\''), just('\''))
 }
 
@@ -297,7 +307,7 @@ pub fn hash_oid<H: Hasher>(s: &ObjectIdentifier, state: &mut H) {
 
 /// LDAP allows the use of either a keystring or an OID in many locations,
 /// e.g. in DNs or in the schema
-#[derive(Clone, Debug, EnumAsInner, Educe)]
+#[derive(Clone, Debug, enum_as_inner::EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(PartialEq, Eq, Hash)]
 pub enum KeyStringOrOID {
@@ -318,10 +328,10 @@ impl PartialOrd for KeyStringOrOID {
 impl Ord for KeyStringOrOID {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
-            (KeyStringOrOID::KeyString(s1), KeyStringOrOID::KeyString(s2)) => s1.cmp(s2),
-            (KeyStringOrOID::KeyString(_), KeyStringOrOID::OID(_)) => std::cmp::Ordering::Less,
-            (KeyStringOrOID::OID(_), KeyStringOrOID::KeyString(_)) => std::cmp::Ordering::Greater,
-            (KeyStringOrOID::OID(oid1), KeyStringOrOID::OID(oid2)) => {
+            (Self::KeyString(s1), Self::KeyString(s2)) => s1.cmp(s2),
+            (Self::KeyString(_), Self::OID(_)) => std::cmp::Ordering::Less,
+            (Self::OID(_), Self::KeyString(_)) => std::cmp::Ordering::Greater,
+            (Self::OID(oid1), Self::OID(oid2)) => {
                 let s1: String = oid1.into();
                 let s2: String = oid2.into();
                 s1.cmp(&s2)
@@ -348,88 +358,92 @@ impl std::fmt::Display for KeyStringOrOID {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for KeyStringOrOID {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
             .parse(value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "keystring or OID".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for KeyStringOrOID {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
-            .parse(value.to_owned())
+            .parse(&value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "keystring or OID".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
-impl TryFrom<&String> for KeyStringOrOID {
-    type Error = ChumskyError;
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
+impl<'src> TryFrom<&'src String> for KeyStringOrOID {
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
+    fn try_from(value: &'src String) -> Result<Self, Self::Error> {
         (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
-            .parse(value.to_owned())
+            .parse(value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "keystring or OID".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for KeyStringOrOID {
-    type Err = ChumskyError;
+    type Err = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         (keystring_or_oid_parser().then_ignore(chumsky::primitive::end()))
-            .parse(s.to_owned())
+            .parse(s)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "keystring or OID".to_string(),
                 source: s.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
-impl From<&KeyStringOrOID> for KeyStringOrOID {
-    fn from(value: &KeyStringOrOID) -> Self {
+impl From<&Self> for KeyStringOrOID {
+    fn from(value: &Self) -> Self {
         value.to_owned()
     }
 }
 
 impl From<KeyString> for KeyStringOrOID {
     fn from(value: KeyString) -> Self {
-        KeyStringOrOID::KeyString(value)
+        Self::KeyString(value)
     }
 }
 
 impl From<&KeyString> for KeyStringOrOID {
     fn from(value: &KeyString) -> Self {
-        KeyStringOrOID::KeyString(value.to_owned())
+        Self::KeyString(value.to_owned())
     }
 }
 
 impl From<ObjectIdentifier> for KeyStringOrOID {
     fn from(value: ObjectIdentifier) -> Self {
-        KeyStringOrOID::OID(value)
+        Self::OID(value)
     }
 }
 
 impl From<&ObjectIdentifier> for KeyStringOrOID {
     fn from(value: &ObjectIdentifier) -> Self {
-        KeyStringOrOID::OID(value.to_owned())
+        Self::OID(value.to_owned())
     }
 }
 
@@ -457,7 +471,8 @@ impl TryFrom<&KeyStringOrOID> for ObjectIdentifier {
 
 /// parses either a [KeyString] or an [ObjectIdentifier]
 #[cfg(feature = "chumsky")]
-pub fn keystring_or_oid_parser() -> impl Parser<char, KeyStringOrOID, Error = Simple<char>> {
+pub fn keystring_or_oid_parser<'src>(
+) -> impl Parser<'src, &'src str, KeyStringOrOID, extra::Err<Rich<'src, char>>> {
     keystring_parser()
         .map(KeyStringOrOID::KeyString)
         .or(oid_parser().map(KeyStringOrOID::OID))
@@ -523,10 +538,10 @@ impl std::fmt::Display for RelativeDistinguishedName {
             } else {
                 first = false;
             }
-            write!(f, "{}", k)?;
+            write!(f, "{k}")?;
             write!(f, "=")?;
             if let Ok(s) = std::str::from_utf8(v) {
-                write!(f, "{}", s)?;
+                write!(f, "{s}")?;
             } else {
                 write!(f, "#{}", hex::encode(v))?;
             }
@@ -537,45 +552,48 @@ impl std::fmt::Display for RelativeDistinguishedName {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for RelativeDistinguishedName {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         (rdn_parser().then_ignore(chumsky::primitive::end()))
             .parse(value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "relative distinguished name".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for RelativeDistinguishedName {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         (rdn_parser().then_ignore(chumsky::primitive::end()))
-            .parse(value.to_owned())
+            .parse(&value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "relative distinguished name".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for RelativeDistinguishedName {
-    type Err = ChumskyError;
+    type Err = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         (rdn_parser().then_ignore(chumsky::primitive::end()))
             .parse(s)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "relative distinguished name".to_string(),
                 source: s.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
@@ -588,13 +606,17 @@ impl From<RelativeDistinguishedName> for String {
 
 /// serialize RDN attribute values as string if possible
 /// falling back to array of numbers of necessary
+///
+/// # Errors
+///
+/// fails if serialize_seq or serialize_element calls fail
 #[cfg(feature = "serde")]
 pub fn serialize_rdn<S>(xs: &[(KeyStringOrOID, Vec<u8>)], s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let mut seq = s.serialize_seq(Some(xs.len()))?;
-    for e @ (k, v) in xs.iter() {
+    for e @ (k, v) in xs {
         if let Ok(s) = std::str::from_utf8(v) {
             seq.serialize_element(&(k, s))?;
         } else {
@@ -605,6 +627,10 @@ where
 }
 
 /// parses an RDN with attribute values being represented either as a string or an array of integers
+///
+/// # Errors
+///
+/// fails if deserializing the elements fails
 #[cfg(feature = "serde")]
 pub fn deserialize_rdn<'de, D>(d: D) -> Result<Vec<(KeyStringOrOID, Vec<u8>)>, D::Error>
 where
@@ -657,29 +683,42 @@ where
 
 /// parses a series of hex-encoded bytes (always even number of hex digits)
 #[cfg(feature = "chumsky")]
-pub fn hex_byte_parser() -> impl Parser<char, u8, Error = Simple<char>> {
-    filter(|c: &char| c.is_ascii_hexdigit())
+#[expect(
+    clippy::missing_panics_doc,
+    reason = "the panic from the unwrap can never happen since we are decoding exactly 2 hex digits so we have exactly 1 byte of output, never 0"
+)]
+#[must_use]
+pub fn hex_byte_parser<'src>() -> impl Parser<'src, &'src str, u8, extra::Err<Rich<'src, char>>> {
+    any()
+        .filter(|c: &char| c.is_ascii_hexdigit())
         .repeated()
         .exactly(2)
         .collect::<String>()
         .try_map(|ds, span| {
-            hex::decode(ds.as_bytes()).map_err(|e| Simple::custom(span, format!("{:?}", e)))
+            hex::decode(ds.as_bytes()).map_err(|e| Rich::custom(span, format!("{e:?}")))
         })
-        .map(|v: Vec<u8>| v.first().unwrap().to_owned())
+        .map(|v: Vec<u8>| {
+            #[expect(clippy::unwrap_used, reason = "since we collect exactly two hex digits the result of hex::decode should be exactly 1 u8 long")]
+            v.first().unwrap().to_owned()
+        })
 }
 
 /// parses a hex-encoded binary attribute value in an RDN
 #[cfg(feature = "chumsky")]
-pub fn rdn_attribute_binary_value_parser() -> impl Parser<char, Vec<u8>, Error = Simple<char>> {
-    just('#').ignore_then(hex_byte_parser().repeated())
+#[must_use]
+pub fn rdn_attribute_binary_value_parser<'src>(
+) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
+    just('#').ignore_then(hex_byte_parser().repeated().collect())
 }
 
 /// parses a plain string attribute value in an RDN
 #[cfg(feature = "chumsky")]
-pub fn rdn_attribute_string_value_parser() -> impl Parser<char, Vec<u8>, Error = Simple<char>> {
+#[must_use]
+pub fn rdn_attribute_string_value_parser<'src>(
+) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
     none_of(",+\"\\<>;")
         .or(just('\\').ignore_then(one_of(" ,+\"\\<>;")))
-        .or(just('\\').ignore_then(hex_byte_parser().map(|s| s as char)))
+        .or(just('\\').ignore_then(hex_byte_parser().map(char::from)))
         .repeated()
         .collect::<String>()
         .map(|s| s.as_bytes().to_vec())
@@ -687,17 +726,22 @@ pub fn rdn_attribute_string_value_parser() -> impl Parser<char, Vec<u8>, Error =
 
 /// parses either a binary or a plain attribute value in an RDN
 #[cfg(feature = "chumsky")]
-pub fn rdn_attribute_value_parser() -> impl Parser<char, Vec<u8>, Error = Simple<char>> {
+#[must_use]
+pub fn rdn_attribute_value_parser<'src>(
+) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
     rdn_attribute_binary_value_parser().or(rdn_attribute_string_value_parser())
 }
 
 /// parses a [RelativeDistinguishedName]
 #[cfg(feature = "chumsky")]
-pub fn rdn_parser() -> impl Parser<char, RelativeDistinguishedName, Error = Simple<char>> {
+#[must_use]
+pub fn rdn_parser<'src>(
+) -> impl Parser<'src, &'src str, RelativeDistinguishedName, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(rdn_attribute_value_parser()))
         .separated_by(just('+'))
         .at_least(1)
+        .collect()
         .map(|attributes| RelativeDistinguishedName { attributes })
 }
 
@@ -715,16 +759,18 @@ pub struct DistinguishedName {
 
 impl DistinguishedName {
     /// returns true if this is the empty DN
-    pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.rdns.is_empty()
     }
     /// returns the DN for the parent object in the LDAP hierarchy unless this is
     /// already the empty DN
-    pub fn parent(&self) -> Option<DistinguishedName> {
+    #[must_use]
+    pub fn parent(&self) -> Option<Self> {
         if self.is_empty() {
             None
         } else {
-            Some(DistinguishedName {
+            Some(Self {
                 rdns: self.rdns.iter().skip(1).cloned().collect(),
             })
         }
@@ -734,19 +780,17 @@ impl DistinguishedName {
     /// of the given other DN
     ///
     /// it does return false if both DNs are identical
-    pub fn is_ancestor_of(&self, other: &DistinguishedName) -> bool {
+    #[must_use]
+    pub fn is_ancestor_of(&self, other: &Self) -> bool {
         let mut it = self.rdns.iter().rev();
         let mut other_it = other.rdns.iter().rev();
         loop {
             let e = it.next();
             let other_e = other_it.next();
             match (e, other_e) {
-                (None, None) => {
-                    // both DNs are identical
-                    return false;
-                }
-                (Some(_), None) => {
-                    // self is longer, can not be an ancestor
+                // both DNs are identical or
+                // self is longer, can not be an ancestor
+                (None | Some(_), None) => {
                     return false;
                 }
                 (None, Some(_)) => {
@@ -768,21 +812,27 @@ impl DistinguishedName {
     }
 
     /// add suffix DN to this DN (e.g. the base DN)
-    pub fn add_suffix(&self, other: &DistinguishedName) -> DistinguishedName {
-        DistinguishedName {
+    #[must_use]
+    pub fn add_suffix(&self, other: &Self) -> Self {
+        Self {
             rdns: [self.rdns.to_vec(), other.rdns.to_vec()].concat(),
         }
     }
 
     /// remove a suffix DN from this DN (e.g. the base DN)
-    pub fn strip_suffix(&self, other: &DistinguishedName) -> Option<DistinguishedName> {
+    #[must_use]
+    pub fn strip_suffix(&self, other: &Self) -> Option<Self> {
         if !other.is_ancestor_of(self) {
             None
         } else {
             let self_len = self.rdns.len();
             let other_len = other.rdns.len();
-            Some(DistinguishedName {
-                rdns: self.rdns.split_at(self_len - other_len).0.to_vec(),
+            Some(Self {
+                rdns: self
+                    .rdns
+                    .split_at(self_len.saturating_sub(other_len))
+                    .0
+                    .to_vec(),
             })
         }
     }
@@ -790,45 +840,48 @@ impl DistinguishedName {
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<&str> for DistinguishedName {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         (dn_parser().then_ignore(chumsky::primitive::end()))
             .parse(value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "distinguished name".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl TryFrom<String> for DistinguishedName {
-    type Error = ChumskyError;
+    type Error = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         (dn_parser().then_ignore(chumsky::primitive::end()))
-            .parse(value.to_owned())
+            .parse(&value)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "distinguished name".to_string(),
                 source: value.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
 
 #[cfg(feature = "chumsky")]
 impl std::str::FromStr for DistinguishedName {
-    type Err = ChumskyError;
+    type Err = ChumskyError<chumsky::error::Rich<'static, char>>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         (dn_parser().then_ignore(chumsky::primitive::end()))
             .parse(s)
+            .into_result()
             .map_err(|e| ChumskyError {
                 description: "distinguished name".to_string(),
                 source: s.to_string(),
-                errors: e,
+                errors: e.into_iter().map(|e| e.into_owned()).collect(),
             })
     }
 }
@@ -848,7 +901,7 @@ impl std::fmt::Display for DistinguishedName {
             } else {
                 first = false;
             }
-            write!(f, "{}", rdn)?;
+            write!(f, "{rdn}")?;
         }
         Ok(())
     }
@@ -874,9 +927,12 @@ impl Ord for DistinguishedName {
 
 /// parses a [DistinguishedName]
 #[cfg(feature = "chumsky")]
-pub fn dn_parser() -> impl Parser<char, DistinguishedName, Error = Simple<char>> {
+#[must_use]
+pub fn dn_parser<'src>(
+) -> impl Parser<'src, &'src str, DistinguishedName, extra::Err<Rich<'src, char>>> {
     rdn_parser()
         .separated_by(just(','))
+        .collect()
         .map(|rdns| DistinguishedName { rdns })
 }
 
@@ -885,7 +941,7 @@ pub fn dn_parser() -> impl Parser<char, DistinguishedName, Error = Simple<char>>
 /// easily
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "diff", derive(Diff))]
-#[cfg_attr(feature = "diff", diff(attr(#[derive(Debug)] #[allow(missing_docs)])))]
+#[cfg_attr(feature = "diff", diff(attr(#[derive(Debug)] #[expect(missing_docs, reason = "there is no way we can add docs to the derived Diff code")])))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LDAPEntry {
     /// the DN of the entry
@@ -898,6 +954,7 @@ pub struct LDAPEntry {
 
 impl LDAPEntry {
     /// return the combined attributes from attrs and bin_attrs for use in e.g. the [ldap3::Ldap::add] method
+    #[must_use]
     pub fn combined_attrs(&self) -> Vec<(Vec<u8>, HashSet<Vec<u8>>)> {
         let mut result: HashMap<Vec<u8>, HashSet<Vec<u8>>> = HashMap::new();
         for (attr_name, attr_values) in &self.attrs {
@@ -947,7 +1004,7 @@ impl From<LDAPEntry> for ldap3::SearchEntry {
 /// an operation to perform to turn one LDAP object into another.
 /// we purposefully only include operations here that operate without
 /// moving the object to a different DN
-#[derive(Debug, Clone, EnumAsInner)]
+#[derive(Debug, Clone)]
 #[cfg(feature = "ldap3")]
 pub enum LDAPOperation {
     /// add a new entry
@@ -972,27 +1029,23 @@ pub enum LDAPOperation {
 impl LDAPOperation {
     /// Used to order operations so parents are added first and children deleted first
     #[cfg(feature = "chumsky")]
+    #[must_use]
     pub fn operation_apply_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
-            (
-                LDAPOperation::Add(entry1 @ LDAPEntry { .. }),
-                LDAPOperation::Add(entry2 @ LDAPEntry { .. }),
-            ) => {
+            (Self::Add(entry1 @ LDAPEntry { .. }), Self::Add(entry2 @ LDAPEntry { .. })) => {
                 let parsed_dn1: Result<DistinguishedName, _> =
-                    dn_parser().parse(entry1.dn.to_owned());
+                    dn_parser().parse(&entry1.dn).into_result();
                 let parsed_dn2: Result<DistinguishedName, _> =
-                    dn_parser().parse(entry2.dn.to_owned());
+                    dn_parser().parse(&entry2.dn).into_result();
                 if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
                     Some(parsed_dn1.cmp(&parsed_dn2))
                 } else {
                     None
                 }
             }
-            (op1 @ LDAPOperation::Delete { .. }, op2 @ LDAPOperation::Delete { .. }) => {
-                let parsed_dn1: Result<DistinguishedName, _> =
-                    dn_parser().parse(op1.as_delete().unwrap().to_owned());
-                let parsed_dn2: Result<DistinguishedName, _> =
-                    dn_parser().parse(op2.as_delete().unwrap().to_owned());
+            (Self::Delete { dn: dn1 }, Self::Delete { dn: dn2 }) => {
+                let parsed_dn1: Result<DistinguishedName, _> = dn_parser().parse(dn1).into_result();
+                let parsed_dn2: Result<DistinguishedName, _> = dn_parser().parse(dn2).into_result();
                 if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
                     Some(parsed_dn1.cmp(&parsed_dn2))
                 } else {
@@ -1012,14 +1065,16 @@ mod test {
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_parse_oid() {
-        assert!(oid_parser().parse("1.2.3.4").is_ok());
+        #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+        oid_parser().parse("1.2.3.4").into_result().unwrap();
     }
 
     #[cfg(feature = "chumsky")]
+    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
     #[test]
     fn test_parse_oid_value() {
         assert_eq!(
-            oid_parser().parse("1.2.3.4"),
+            oid_parser().parse("1.2.3.4").into_result(),
             Ok("1.2.3.4".to_string().try_into().unwrap())
         );
     }
@@ -1028,16 +1083,16 @@ mod test {
     #[test]
     fn test_dn_parser_empty_dn() {
         assert_eq!(
-            dn_parser().parse(""),
+            dn_parser().parse("").into_result(),
             Ok(DistinguishedName { rdns: vec![] })
-        )
+        );
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_string_attribute() {
         assert_eq!(
-            dn_parser().parse("cn=Foobar"),
+            dn_parser().parse("cn=Foobar").into_result(),
             Ok(DistinguishedName {
                 rdns: vec![RelativeDistinguishedName {
                     attributes: vec![(
@@ -1046,14 +1101,14 @@ mod test {
                     )]
                 }]
             })
-        )
+        );
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_string_attribute_with_escaped_comma() {
         assert_eq!(
-            dn_parser().parse("cn=Foo\\,bar"),
+            dn_parser().parse("cn=Foo\\,bar").into_result(),
             Ok(DistinguishedName {
                 rdns: vec![RelativeDistinguishedName {
                     attributes: vec![(
@@ -1062,14 +1117,14 @@ mod test {
                     )]
                 }]
             })
-        )
+        );
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_single_binary_attribute() {
         assert_eq!(
-            dn_parser().parse("cn=#466f6f626172"),
+            dn_parser().parse("cn=#466f6f626172").into_result(),
             Ok(DistinguishedName {
                 rdns: vec![RelativeDistinguishedName {
                     attributes: vec![(
@@ -1078,14 +1133,14 @@ mod test {
                     )]
                 }]
             })
-        )
+        );
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_single_rdn_multiple_string_attributes() {
         assert_eq!(
-            dn_parser().parse("cn=Foo\\,bar+uid=foobar"),
+            dn_parser().parse("cn=Foo\\,bar+uid=foobar").into_result(),
             Ok(DistinguishedName {
                 rdns: vec![RelativeDistinguishedName {
                     attributes: vec![
@@ -1100,14 +1155,14 @@ mod test {
                     ]
                 }]
             })
-        )
+        );
     }
 
     #[cfg(feature = "chumsky")]
     #[test]
     fn test_dn_parser_multiple_rdns() {
         assert_eq!(
-            dn_parser().parse("cn=Foo\\,bar,uid=foobar"),
+            dn_parser().parse("cn=Foo\\,bar,uid=foobar").into_result(),
             Ok(DistinguishedName {
                 rdns: vec![
                     RelativeDistinguishedName {
@@ -1124,7 +1179,7 @@ mod test {
                     },
                 ]
             })
-        )
+        );
     }
 
     #[test]
@@ -1139,12 +1194,13 @@ mod test {
                 }]
             }),
             std::cmp::Ordering::Less
-        )
+        );
     }
 
     #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
+        #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
         let oid: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
         let result = serde_json::to_string(&oid)?;
         assert_eq!(result, "\"1.2.3.4\"".to_string());
@@ -1154,6 +1210,7 @@ mod test {
     #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_oid() -> Result<(), Box<dyn std::error::Error>> {
+        #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
         let expected: ObjectIdentifier = "1.2.3.4".to_string().try_into().unwrap();
         let result: ObjectIdentifier = serde_json::from_str("\"1.2.3.4\"")?;
         assert_eq!(result, expected);
@@ -1200,6 +1257,7 @@ mod test {
     #[cfg(feature = "serde")]
     #[test]
     fn test_serialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
+        #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
         let ks: KeyStringOrOID = KeyStringOrOID::OID("1.2.3.4".to_string().try_into().unwrap());
         let result = serde_json::to_string(&ks)?;
         assert_eq!(result, "{\"oid\":\"1.2.3.4\"}".to_string());
@@ -1209,6 +1267,7 @@ mod test {
     #[cfg(feature = "serde")]
     #[test]
     fn test_deserialize_json_keystring_or_oid_oid() -> Result<(), Box<dyn std::error::Error>> {
+        #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
         let expected: KeyStringOrOID =
             KeyStringOrOID::OID("1.2.3.4".to_string().try_into().unwrap());
         let result: KeyStringOrOID = serde_json::from_str("{\"oid\":\"1.2.3.4\"}")?;
