@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 - 2026-01-08 12:44:28Z
+
+### 🚀 Features
+
+- *(release)* Add release.sh and cliff and rumdl config
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dependencies)* Update dependencies
+
 ## 0.6.2
 
 update dependencies
