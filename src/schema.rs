@@ -176,6 +176,28 @@ static OBJECT_CLASS_TAGS: LazyLock<Vec<LDAPSchemaTagDescriptor>> = LazyLock::new
     ]
 });
 
+/// all possible tag names in the LDAP schema
+#[cfg(feature = "chumsky")]
+static ALL_SCHEMA_TAG_NAMES: LazyLock<HashSet<String>> = LazyLock::new(|| {
+    let mut tags = HashSet::new();
+    for tag in ATTRIBUTE_TYPE_TAGS.iter() {
+        tags.insert(tag.tag_name.to_owned());
+    }
+    for tag in OBJECT_CLASS_TAGS.iter() {
+        tags.insert(tag.tag_name.to_owned());
+    }
+    for tag in LDAP_SYNTAX_TAGS.iter() {
+        tags.insert(tag.tag_name.to_owned());
+    }
+    for tag in MATCHING_RULE_TAGS.iter() {
+        tags.insert(tag.tag_name.to_owned());
+    }
+    for tag in MATCHING_RULE_USE_TAGS.iter() {
+        tags.insert(tag.tag_name.to_owned());
+    }
+    tags
+});
+
 /// stores the parameter values that can appear behind a tag in an LDAP schema entry
 #[derive(Clone, Debug, EnumAsInner, Educe)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -292,6 +314,15 @@ pub fn ldap_schema_tag_value_parser<'src>(
             .labelled("single-quoted string")
             .boxed(),
         LDAPSchemaTagType::KeyString => keystring_parser()
+            .try_map(|ks, span| {
+                if ALL_SCHEMA_TAG_NAMES.contains(&ks.0) {
+                    return Err(Rich::custom(
+                        span,
+                        format!("'{}' is a reserved tag name and cannot be used as a KeyString value here", ks.0),
+                    ));
+                }
+                Ok(ks)
+            })
             .map(LDAPSchemaTagValue::KeyString)
             .labelled("keystring")
             .boxed(),
@@ -300,6 +331,17 @@ pub fn ldap_schema_tag_value_parser<'src>(
             .labelled("quoted keystring")
             .boxed(),
         LDAPSchemaTagType::KeyStringOrOID => keystring_or_oid_parser()
+            .try_map(|ksoid, span| {
+                if let KeyStringOrOID::KeyString(ks) = &ksoid {
+                    if ALL_SCHEMA_TAG_NAMES.contains(&ks.0) {
+                        return Err(Rich::custom(
+                            span,
+                            format!("'{}' is a reserved tag name and cannot be used as a KeyStringOrOID value here", ks.0),
+                        ));
+                    }
+                }
+                Ok(ksoid)
+            })
             .map(LDAPSchemaTagValue::KeyStringOrOID)
             .labelled("keystring or OID")
             .boxed(),
@@ -675,40 +717,86 @@ pub fn attribute_type_parser<'src>(
                 })?
                 .to_vec(),
             sup: optional_tag("SUP", &tags)
-                .map(|s| s.as_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| Rich::custom(span, "SUP parameter should be a key string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| Rich::custom(span, "SUP parameter should be a key string"))
+                })
+                .transpose()?,
             desc: optional_tag("DESC", &tags)
-                .map(|s| s.as_string().map(|i| i.to_string()))
-                .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_string()
+                        .map(|val| val.to_string())
+                        .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))
+                })
+                .transpose()?,
             syntax: optional_tag("SYNTAX", &tags)
-                .map(|s| s.as_oid_with_length().map(|i| i.to_owned()))
-                .ok_or_else(|| {
-                    Rich::custom(
-                        span,
-                        "SYNTAX parameter should be an OID with an optional length",
-                    )
-                })?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_oid_with_length()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(
+                                span,
+                                "SYNTAX parameter should be an OID with an optional length",
+                            )
+                        })
+                })
+                .transpose()?,
             single_value: optional_tag("SINGLE-VALUE", &tags).is_some(),
             equality: optional_tag("EQUALITY", &tags)
-                .map(|s| s.as_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| Rich::custom(span, "EQUALITY parameter should be a key string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "EQUALITY parameter should be a key string")
+                        })
+                })
+                .transpose()?,
             substr: optional_tag("SUBSTR", &tags)
-                .map(|s| s.as_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| Rich::custom(span, "SUBSTR parameter should be a key string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "SUBSTR parameter should be a key string")
+                        })
+                })
+                .transpose()?,
             ordering: optional_tag("ORDERING", &tags)
-                .map(|s| s.as_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| Rich::custom(span, "ORDERING parameter should be a key string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "ORDERING parameter should be a key string")
+                        })
+                })
+                .transpose()?,
             no_user_modification: optional_tag("NO-USER-MODIFICATION", &tags).is_some(),
             usage: optional_tag("USAGE", &tags)
-                .map(|s| s.as_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| Rich::custom(span, "USAGE parameter should be a key string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| Rich::custom(span, "USAGE parameter should be a key string"))
+                })
+                .transpose()?,
             collective: optional_tag("COLLECTIVE", &tags).is_some(),
             obsolete: optional_tag("OBSOLETE", &tags).is_some(),
             x_ordered: optional_tag("X-ORDERED", &tags)
-                .map(|s| s.as_quoted_key_string().map(|i| i.to_owned()))
-                .ok_or_else(|| {
-                    Rich::custom(span, "X-ORDERED parameter should be a quoted key string")
-                })?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_quoted_key_string()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "X-ORDERED parameter should be a quoted key string")
+                        })
+                })
+                .transpose()?,
         })
     })
 }
@@ -785,30 +873,50 @@ pub fn object_class_parser<'src>(
                 })?
                 .to_vec(),
             sup: optional_tag("SUP", &tags)
-                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
-                .ok_or_else(|| {
-                    Rich::custom(span, "SUP parameter should be a key string or OID list")
-                })?
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string_or_oid_list()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "SUP parameter should be a key string or OID list")
+                        })
+                })
+                .transpose()?
                 .unwrap_or_default(),
             desc: optional_tag("DESC", &tags)
-                .map(|s| s.as_string().map(|i| i.to_string()))
-                .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))?,
+                .map(|tag_value| {
+                    tag_value
+                        .as_string()
+                        .map(|val| val.to_string())
+                        .ok_or_else(|| Rich::custom(span, "DESC parameter should be a string"))
+                })
+                .transpose()?,
             object_class_type: optional_tag("ABSTRACT", &tags)
                 .map(|_| ObjectClassType::Abstract)
                 .or_else(|| optional_tag("STRUCTURAL", &tags).map(|_| ObjectClassType::Structural))
                 .or_else(|| optional_tag("AUXILIARY", &tags).map(|_| ObjectClassType::Auxiliary))
                 .unwrap_or(ObjectClassType::Structural),
             must: optional_tag("MUST", &tags)
-                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
-                .ok_or_else(|| {
-                    Rich::custom(span, "MUST parameter should be a key string or OID list")
-                })?
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string_or_oid_list()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "MUST parameter should be a key string or OID list")
+                        })
+                })
+                .transpose()?
                 .unwrap_or_default(),
             may: optional_tag("MAY", &tags)
-                .map(|s| s.as_key_string_or_oid_list().map(|i| i.to_owned()))
-                .ok_or_else(|| {
-                    Rich::custom(span, "MAY parameter should be a key string or OID list")
-                })?
+                .map(|tag_value| {
+                    tag_value
+                        .as_key_string_or_oid_list()
+                        .map(|val| val.to_owned())
+                        .ok_or_else(|| {
+                            Rich::custom(span, "MAY parameter should be a key string or OID list")
+                        })
+                })
+                .transpose()?
                 .unwrap_or_default(),
             obsolete: optional_tag("OBSOLETE", &tags).is_some(),
         })
@@ -1018,9 +1126,15 @@ impl LDAPSchema {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::expect_used,
+    reason = "In tests it is okay to fail using expect"
+)]
 mod test {
     #[cfg(feature = "chumsky")]
     use super::*;
+    #[cfg(feature = "chumsky")]
+    use crate::basic::ChumskyError;
 
     #[cfg(feature = "chumsky")]
     #[test]
@@ -1190,5 +1304,1723 @@ mod test {
                 ))],
             })
         );
+    }
+
+    mod attribute_type_parser_tests {
+        use super::*;
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_sup_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.sup.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_sup_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' SUP 'invalid value with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_sup_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' SUP DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_sup_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' SUP someKeyString DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(attr_type.sup, Some(KeyString("someKeyString".to_string())));
+        }
+
+        // Test cases for 'DESC'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_missing() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.desc.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_wrong_type() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC unquoted String SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC 'Some description' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(attr_type.desc, Some("Some description".to_string()));
+        }
+
+        // Test cases for 'SYNTAX'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_missing() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.syntax.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 'not an OID' DESC 'Test Attribute' )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX DESC 'Test Attribute' )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_correct_with_length() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{255} DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.syntax,
+                Some(OIDWithLength {
+                    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                    oid: "1.3.6.1.4.1.1466.115.121.1.15"
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                    length: Some(255)
+                })
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_correct_without_length() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.syntax,
+                Some(OIDWithLength {
+                    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                    oid: "1.3.6.1.4.1.1466.115.121.1.15"
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                    length: None
+                })
+            );
+        }
+
+        // Test cases for 'SINGLE-VALUE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_single_value_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.single_value);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_single_value_present() {
+            let schema_str = "( 1.2.3 NAME 'test' SINGLE-VALUE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.single_value);
+        }
+
+        // Test cases for 'EQUALITY'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.equality.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY 'invalid equality with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY caseIgnoreMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.equality,
+                Some(KeyString("caseIgnoreMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'SUBSTR'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.substr.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR 'invalid substr with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR caseIgnoreSubstringsMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.substr,
+                Some(KeyString("caseIgnoreSubstringsMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'ORDERING'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.ordering.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING 'invalid ordering with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING caseIgnoreOrderingMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.ordering,
+                Some(KeyString("caseIgnoreOrderingMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'NO-USER-MODIFICATION'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_no_user_modification_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.no_user_modification);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_no_user_modification_present() {
+            let schema_str = "( 1.2.3 NAME 'test' NO-USER-MODIFICATION DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.no_user_modification);
+        }
+
+        // Test cases for 'USAGE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.usage.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE 'invalid usage with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE userApplications DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.usage,
+                Some(KeyString("userApplications".to_string()))
+            );
+        }
+
+        // Test cases for 'COLLECTIVE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_collective_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.collective);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_collective_present() {
+            let schema_str = "( 1.2.3 NAME 'test' COLLECTIVE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.collective);
+        }
+
+        // Test cases for 'OBSOLETE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_obsolete_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.obsolete);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_obsolete_present() {
+            let schema_str = "( 1.2.3 NAME 'test' OBSOLETE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.obsolete);
+        }
+
+        // Test cases for 'X-ORDERED'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.x_ordered.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED unquotedString DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected quoted keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected quoted keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected quoted keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected quoted keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED 'values' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(attr_type.x_ordered, Some(KeyString("values".to_string())));
+        }
+    }
+
+    mod object_class_parser_tests {
+        use super::*;
+
+        // Test cases for 'SUP'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_sup_missing() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(object_class.sup.is_empty());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_sup_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'testOC' SUP 'invalid value with spaces' MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_sup_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'testOC' SUP MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_sup_correct_single() {
+            let schema_str = "( 1.2.3 NAME 'testOC' SUP top MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.sup,
+                vec![KeyStringOrOID::KeyString(KeyString("top".to_string()))]
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_sup_correct_list() {
+            let schema_str = "( 1.2.3 NAME 'testOC' SUP ( top $ person ) MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.sup,
+                vec![
+                    KeyStringOrOID::KeyString(KeyString("top".to_string())),
+                    KeyStringOrOID::KeyString(KeyString("person".to_string()))
+                ]
+            );
+        }
+
+        // Test cases for 'DESC'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_desc_missing() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(object_class.desc.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_desc_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'testOC' DESC unquoted String MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_desc_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'testOC' DESC MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_desc_correct() {
+            let schema_str = "( 1.2.3 NAME 'testOC' DESC 'Some description' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.desc, Some("Some description".to_string()));
+        }
+
+        // Test cases for 'object_class_type' (ABSTRACT, STRUCTURAL, AUXILIARY)
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_abstract_present() {
+            let schema_str = "( 1.2.3 NAME 'testOC' ABSTRACT MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.object_class_type, ObjectClassType::Abstract);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_structural_present() {
+            let schema_str = "( 1.2.3 NAME 'testOC' STRUCTURAL MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.object_class_type, ObjectClassType::Structural);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_auxiliary_present() {
+            let schema_str = "( 1.2.3 NAME 'testOC' AUXILIARY MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.object_class_type, ObjectClassType::Auxiliary);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_default_structural() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.object_class_type, ObjectClassType::Structural);
+        }
+
+        // Test for multiple type tags - parser should pick the first encountered.
+        // In OBJECT_CLASS_TAGS, ABSTRACT is before STRUCTURAL and AUXILIARY.
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_multiple_tags_abstract_first() {
+            let schema_str = "( 1.2.3 NAME 'testOC' ABSTRACT STRUCTURAL MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(object_class.object_class_type, ObjectClassType::Abstract);
+        }
+
+        // Test for multiple type tags - if STRUCTURAL is encountered first.
+        // This scenario might not be easily parsable with current ldap_schema_parser due to fixed order in OBJECT_CLASS_TAGS.
+        // But if it were possible to define `STRUCTURAL` before `ABSTRACT`, this test would be relevant.
+        // For now, let's assume the parser handles input as defined in OBJECT_CLASS_TAGS.
+        // This test case is more about understanding parsing behavior rather than "error" of multiple tags.
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_type_multiple_tags_structural_first_if_possible() {
+            // Note: Due to fixed order of OBJECT_CLASS_TAGS, ABSTRACT is always parsed before STRUCTURAL.
+            // This test is conceptual unless OBJECT_CLASS_TAGS order can be dynamic or input order matters for tag parsing in ldap_schema_parser.
+            // Based on `object_class_parser`'s `or_else` chain, the first one found wins.
+            // The actual input string for parsing doesn't necessarily enforce order, but the `ldap_schema_parser` picks based on its internal `fold` order.
+            // The `fold` processes tags in the order they appear in `tag_descriptors`.
+            // So if STRUCTURAL appears before ABSTRACT in the input string, the ldap_schema_parser should still pick ABSTRACT if it's listed earlier in OBJECT_CLASS_TAGS.
+            // Let's create an input where STRUCTURAL comes first to see if the `or_else` chain correctly picks based on tag definition order.
+            // However, the `ldap_schema_parser` gets a list of tags and can find them in any order in the input. The `or_else` in the `object_class_parser` logic will then apply a preference.
+
+            // The OBJECT_CLASS_TAGS is defined as:
+            // ABSTRACT, STRUCTURAL, AUXILIARY
+            // So, ABSTRACT will always be checked first by `object_class_type` logic if present.
+            // If the input string has STRUCTURAL before ABSTRACT, but ABSTRACT is still found by `ldap_schema_parser` as one of the `tags`,
+            // then `optional_tag("ABSTRACT", &tags)` will return Some, and the `or_else` chain will stop there.
+
+            // So a test where STRUCTURAL is *picked* over ABSTRACT when both are present in the *input* string,
+            // would require STRUCTURAL to be defined earlier in OBJECT_CLASS_TAGS or a different parsing strategy.
+            // For now, we'll confirm that if STRUCTURAL is the only one, it's picked.
+            // The previous `test_object_class_type_structural_present` already covers this.
+
+            // Re-evaluating `test_object_class_type_multiple_tags_abstract_first`, if `STRUCTURAL` were to appear before `ABSTRACT` in `OBJECT_CLASS_TAGS`,
+            // this test would be crucial. For now, given the fixed tag order, I will test the documented behavior.
+
+            let schema_str = "( 1.2.3 NAME 'testOC' STRUCTURAL ABSTRACT MUST attr1 )"; // STRUCTURAL appears first in input
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            // Due to `OBJECT_CLASS_TAGS` definition order and `or_else` chain, ABSTRACT takes precedence if both are present in the `tags` list.
+            assert_eq!(object_class.object_class_type, ObjectClassType::Abstract);
+        }
+
+        // Test cases for 'MUST'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_must_missing() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MAY attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(object_class.must.is_empty());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_must_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST 'invalid value with spaces' MAY attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_must_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST MAY attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_must_correct_single() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST cn MAY attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.must,
+                vec![KeyStringOrOID::KeyString(KeyString("cn".to_string()))]
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_must_correct_list() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST ( cn $ sn ) MAY attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.must,
+                vec![
+                    KeyStringOrOID::KeyString(KeyString("cn".to_string())),
+                    KeyStringOrOID::KeyString(KeyString("sn".to_string()))
+                ]
+            );
+        }
+
+        // Test cases for 'MAY'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_may_missing() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(object_class.may.is_empty());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_may_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MAY 'invalid value with spaces' MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected list of keystrings or OIDs separated by $'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_may_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MAY MUST attr1 )";
+            let result = object_class_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "object class".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_may_correct_single() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MAY description MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.may,
+                vec![KeyStringOrOID::KeyString(KeyString(
+                    "description".to_string()
+                ))]
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_may_correct_list() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MAY ( description $ seeAlso ) MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                object_class.may,
+                vec![
+                    KeyStringOrOID::KeyString(KeyString("description".to_string())),
+                    KeyStringOrOID::KeyString(KeyString("seeAlso".to_string()))
+                ]
+            );
+        }
+
+        // Test cases for 'OBSOLETE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_obsolete_missing() {
+            let schema_str = "( 1.2.3 NAME 'testOC' MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!object_class.obsolete);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_object_class_obsolete_present() {
+            let schema_str = "( 1.2.3 NAME 'testOC' OBSOLETE MUST attr1 )";
+            let object_class = object_class_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(object_class.obsolete);
+        }
+
+        // Test cases for 'DESC'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_missing() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.desc.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_wrong_type() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC unquoted String SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_desc_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC 'Some description' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(attr_type.desc, Some("Some description".to_string()));
+        }
+
+        // Test cases for 'SYNTAX'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_missing() {
+            let schema_str = "( 1.2.3 NAME 'test' DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.syntax.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 'not an OID' DESC 'Test Attribute' )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX DESC 'Test Attribute' )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_correct_with_length() {
+            let schema_str = "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{255} DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.syntax,
+                Some(OIDWithLength {
+                    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                    oid: "1.3.6.1.4.1.1466.115.121.1.15"
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                    length: Some(255)
+                })
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_syntax_correct_without_length() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 DESC 'Test Attribute' )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.syntax,
+                Some(OIDWithLength {
+                    #[expect(clippy::unwrap_used, reason = "just a literal parse in a test")]
+                    oid: "1.3.6.1.4.1.1466.115.121.1.15"
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                    length: None
+                })
+            );
+        }
+
+        // Test cases for 'SINGLE-VALUE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_single_value_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.single_value);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_single_value_present() {
+            let schema_str = "( 1.2.3 NAME 'test' SINGLE-VALUE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.single_value);
+        }
+
+        // Test cases for 'EQUALITY'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.equality.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY 'invalid equality with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_equality_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' EQUALITY caseIgnoreMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.equality,
+                Some(KeyString("caseIgnoreMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'SUBSTR'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.substr.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR 'invalid substr with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_substr_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' SUBSTR caseIgnoreSubstringsMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.substr,
+                Some(KeyString("caseIgnoreSubstringsMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'ORDERING'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.ordering.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING 'invalid ordering with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_ordering_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' ORDERING caseIgnoreOrderingMatch DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.ordering,
+                Some(KeyString("caseIgnoreOrderingMatch".to_string()))
+            );
+        }
+
+        // Test cases for 'NO-USER-MODIFICATION'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_no_user_modification_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.no_user_modification);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_no_user_modification_present() {
+            let schema_str = "( 1.2.3 NAME 'test' NO-USER-MODIFICATION DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.no_user_modification);
+        }
+
+        // Test cases for 'USAGE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.usage.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE 'invalid usage with spaces' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected end of input while parsing [], expected keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_usage_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' USAGE userApplications DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(
+                attr_type.usage,
+                Some(KeyString("userApplications".to_string()))
+            );
+        }
+
+        // Test cases for 'COLLECTIVE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_collective_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.collective);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_collective_present() {
+            let schema_str = "( 1.2.3 NAME 'test' COLLECTIVE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.collective);
+        }
+
+        // Test cases for 'OBSOLETE'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_obsolete_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(!attr_type.obsolete);
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_obsolete_present() {
+            let schema_str = "( 1.2.3 NAME 'test' OBSOLETE DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.obsolete);
+        }
+
+        // Test cases for 'X-ORDERED'
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_missing() {
+            let schema_str =
+                "( 1.2.3 NAME 'test' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert!(attr_type.x_ordered.is_none());
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_wrong_type() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED unquotedString DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected quoted keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected quoted keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_missing_param() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let result = attribute_type_parser().parse(schema_str).into_result();
+            #[expect(clippy::unwrap_used, reason = "intentional for assertion")]
+            let err = result.unwrap_err();
+            let err_string = format!(
+                "{}",
+                ChumskyError {
+                    description: "attribute type".to_string(),
+                    source: schema_str.to_string(),
+                    errors: err.into_iter().map(|e| e.into_owned()).collect(),
+                }
+            );
+            assert!(
+                err_string.contains("Unexpected token while parsing [], expected quoted keystring"),
+                "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected quoted keystring'",
+            );
+        }
+
+        #[cfg(feature = "chumsky")]
+        #[test]
+        fn test_attribute_type_x_ordered_correct() {
+            let schema_str = "( 1.2.3 NAME 'test' X-ORDERED 'values' DESC 'Test Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )";
+            let attr_type = attribute_type_parser()
+                .parse(schema_str)
+                .into_result()
+                .expect("Parsing failed");
+            assert_eq!(attr_type.x_ordered, Some(KeyString("values".to_string())));
+        }
     }
 }
