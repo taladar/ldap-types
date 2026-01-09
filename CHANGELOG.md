@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 - 2026-01-09 10:51:43Z
+
+### 🐛 Bug Fixes
+
+- *(schema)* Fix parsing of optional tags
+
 ## 0.7.0 - 2026-01-08 12:44:28Z
 
 ### 🚀 Features
