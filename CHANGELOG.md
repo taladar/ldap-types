@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 - 2026-02-09 14:59:52Z
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dependencies)* Update dependencies
+
 ## 0.7.1 - 2026-01-09 10:51:43Z
 
 ### 🐛 Bug Fixes
