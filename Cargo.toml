@@ -39,7 +39,7 @@ features = ["Hash", "PartialEq", "Eq"]
 default-features = false
 
 [dependencies.enum-as-inner]
-version = "0.6.1"
+version = "0.7.0"
 
 [dependencies.hex]
 version = "0.4.3"
