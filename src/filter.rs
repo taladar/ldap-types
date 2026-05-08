@@ -8,11 +8,11 @@ use oid::ObjectIdentifier;
 #[cfg(feature = "chumsky")]
 use std::sync::LazyLock;
 
-#[cfg(feature = "chumsky")]
-use crate::basic::keystring_or_oid_parser;
 use crate::basic::KeyStringOrOID;
 #[cfg(feature = "chumsky")]
 use crate::basic::OIDWithLength;
+#[cfg(feature = "chumsky")]
+use crate::basic::keystring_or_oid_parser;
 #[cfg(feature = "chumsky")]
 use crate::schema::LDAPSchema;
 
@@ -346,8 +346,8 @@ impl std::fmt::Display for LDAPSearchFilter {
 /// parses an equality match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_equal_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_equal_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(none_of(")*").repeated().collect::<String>()))
         .map(
@@ -363,8 +363,8 @@ pub fn search_equal_parser<'src>(
 /// parses an approximate match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_approx_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_approx_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just("=~").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -380,8 +380,8 @@ pub fn search_approx_parser<'src>(
 /// parses a greater or equal match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_greater_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_greater_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just(">=").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -397,8 +397,8 @@ pub fn search_greater_parser<'src>(
 /// parses a less or equal match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_less_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_less_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just("<=").ignore_then(none_of(')').repeated().collect::<String>()))
         .map(|(attribute_name, attribute_value)| LDAPSearchFilter::Less {
@@ -412,8 +412,8 @@ pub fn search_less_parser<'src>(
 /// parses a present match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_present_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_present_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then_ignore(just("=*"))
         .map(|attribute_name| LDAPSearchFilter::Present { attribute_name })
@@ -424,8 +424,8 @@ pub fn search_present_parser<'src>(
 /// parses a substring match in an LDAP filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_substring_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_substring_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(none_of(')').repeated().collect::<String>()))
         .map(
@@ -441,8 +441,8 @@ pub fn search_substring_parser<'src>(
 /// parses an LDAP search filter expression
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn search_filter_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
+pub fn search_filter_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSearchFilter, extra::Err<Rich<'src, char>>> {
     recursive::<_, _, _, _, _>(|inner| {
         choice((
             just('&')
@@ -477,6 +477,8 @@ mod test {
     use super::*;
     #[cfg(feature = "chumsky")]
     use crate::basic::KeyString;
+    #[cfg(feature = "chumsky")]
+    use pretty_assertions::assert_eq;
 
     #[cfg(feature = "chumsky")]
     #[test]

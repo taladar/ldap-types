@@ -383,7 +383,10 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports String inputs")
+                write!(
+                    f,
+                    "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports String inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(
@@ -458,13 +461,19 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs")
+                write!(
+                    f,
+                    "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs"
+                )
             }
             Self::LdapShouldNotReturnMultipleResults {
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered multiple string values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs")
+                write!(
+                    f,
+                    "encountered multiple string values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports String inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(
@@ -555,14 +564,20 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs")
+                write!(
+                    f,
+                    "encountered binary values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs"
+                )
             }
             Self::LdapShouldReturnExactlyOneResult {
                 entry_dn,
                 attribute_name,
                 count,
             } => {
-                write!(f, "encountered {count} string values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs")
+                write!(
+                    f,
+                    "encountered {count} string values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports String inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(
@@ -710,7 +725,10 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports binary inputs")
+                write!(
+                    f,
+                    "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a Vec of a type that only supports binary inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(
@@ -786,13 +804,19 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs")
+                write!(
+                    f,
+                    "encountered String values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs"
+                )
             }
             Self::LdapShouldNotReturnMultipleResults {
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered multiple binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs")
+                write!(
+                    f,
+                    "encountered multiple binary values in input for {entry_dn} attribute {attribute_name} when converting an Option of a type that only supports binary inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(
@@ -883,14 +907,20 @@ where
                 entry_dn,
                 attribute_name,
             } => {
-                write!(f, "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs")
+                write!(
+                    f,
+                    "encountered String values in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs"
+                )
             }
             Self::LdapShouldReturnExactlyOneResult {
                 entry_dn,
                 attribute_name,
                 count,
             } => {
-                write!(f, "encountered {count} binary values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs")
+                write!(
+                    f,
+                    "encountered {count} binary values (expected exactly one) in input for {entry_dn} attribute {attribute_name} when converting a required value of a type that only supports binary inputs"
+                )
             }
             Self::PrimitiveValueConversionError(err) => {
                 write!(

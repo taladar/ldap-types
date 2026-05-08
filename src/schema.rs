@@ -332,13 +332,13 @@ pub fn ldap_schema_tag_value_parser<'src>(
             .boxed(),
         LDAPSchemaTagType::KeyStringOrOID => keystring_or_oid_parser()
             .try_map(|ksoid, span| {
-                if let KeyStringOrOID::KeyString(ks) = &ksoid {
-                    if ALL_SCHEMA_TAG_NAMES.contains(&ks.0) {
-                        return Err(Rich::custom(
-                            span,
-                            format!("'{}' is a reserved tag name and cannot be used as a KeyStringOrOID value here", ks.0),
-                        ));
-                    }
+                if let KeyStringOrOID::KeyString(ks) = &ksoid
+                    && ALL_SCHEMA_TAG_NAMES.contains(&ks.0)
+                {
+                    return Err(Rich::custom(
+                        span,
+                        format!("'{}' is a reserved tag name and cannot be used as a KeyStringOrOID value here", ks.0),
+                    ));
                 }
                 Ok(ksoid)
             })
@@ -403,7 +403,7 @@ pub fn ldap_schema_tag_parser<'src>(
 pub fn ldap_schema_parser<'src>(
     tag_descriptors: &'src [LDAPSchemaTagDescriptor],
 ) -> impl Parser<'src, &'src str, (ObjectIdentifier, Vec<LDAPSchemaTag>), extra::Err<Rich<'src, char>>>
-       + 'src {
++ 'src {
     #[expect(
         clippy::expect_used,
         reason = "this fails essentially based on the contents of the tag_descriptors parameter only and chumsky offers no good way to return this type of error"
@@ -492,8 +492,8 @@ impl std::fmt::Debug for LDAPSyntax {
 /// <https://ldapwiki.com/wiki/LDAPSyntaxes>
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn ldap_syntax_parser<'src>(
-) -> impl Parser<'src, &'src str, LDAPSyntax, extra::Err<Rich<'src, char>>> {
+pub fn ldap_syntax_parser<'src>()
+-> impl Parser<'src, &'src str, LDAPSyntax, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&LDAP_SYNTAX_TAGS).try_map(|(oid, tags), span| {
         Ok(LDAPSyntax {
             oid,
@@ -550,8 +550,8 @@ impl std::fmt::Debug for MatchingRule {
 /// parse a matching rule LDAP schema entry
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn matching_rule_parser<'src>(
-) -> impl Parser<'src, &'src str, MatchingRule, extra::Err<Rich<'src, char>>> {
+pub fn matching_rule_parser<'src>()
+-> impl Parser<'src, &'src str, MatchingRule, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&MATCHING_RULE_TAGS).try_map(|(oid, tags), span| {
         Ok(MatchingRule {
             oid,
@@ -604,8 +604,8 @@ impl std::fmt::Debug for MatchingRuleUse {
 /// parse a matching rule use LDAP schema entry
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn matching_rule_use_parser<'src>(
-) -> impl Parser<'src, &'src str, MatchingRuleUse, extra::Err<Rich<'src, char>>> {
+pub fn matching_rule_use_parser<'src>()
+-> impl Parser<'src, &'src str, MatchingRuleUse, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&MATCHING_RULE_USE_TAGS).try_map(|(oid, tags), span| {
         Ok(MatchingRuleUse {
             oid,
@@ -705,8 +705,8 @@ impl std::fmt::Debug for AttributeType {
 /// parser for attribute type LDAP schema entries
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn attribute_type_parser<'src>(
-) -> impl Parser<'src, &'src str, AttributeType, extra::Err<Rich<'src, char>>> {
+pub fn attribute_type_parser<'src>()
+-> impl Parser<'src, &'src str, AttributeType, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&ATTRIBUTE_TYPE_TAGS).try_map(|(oid, tags), span| {
         Ok(AttributeType {
             oid,
@@ -861,8 +861,8 @@ impl std::fmt::Debug for ObjectClass {
 /// parses an LDAP schema object class entry
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn object_class_parser<'src>(
-) -> impl Parser<'src, &'src str, ObjectClass, extra::Err<Rich<'src, char>>> {
+pub fn object_class_parser<'src>()
+-> impl Parser<'src, &'src str, ObjectClass, extra::Err<Rich<'src, char>>> {
     ldap_schema_parser(&OBJECT_CLASS_TAGS).try_map(|(oid, tags), span| {
         Ok(ObjectClass {
             oid,
@@ -1135,6 +1135,8 @@ mod test {
     use super::*;
     #[cfg(feature = "chumsky")]
     use crate::basic::ChumskyError;
+    #[cfg(feature = "chumsky")]
+    use pretty_assertions::assert_eq;
 
     #[cfg(feature = "chumsky")]
     #[test]
@@ -1308,6 +1310,8 @@ mod test {
 
     mod attribute_type_parser_tests {
         use super::*;
+        #[cfg(feature = "chumsky")]
+        use pretty_assertions::assert_eq;
 
         #[cfg(feature = "chumsky")]
         #[test]
@@ -1403,7 +1407,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -1424,7 +1429,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -1468,7 +1474,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                err_string.contains(
+                    "Unexpected end of input while parsing [], expected OID with optional length"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
             );
         }
@@ -1489,7 +1497,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                err_string.contains(
+                    "Unexpected end of input while parsing [], expected OID with optional length"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
             );
         }
@@ -1978,6 +1988,8 @@ mod test {
 
     mod object_class_parser_tests {
         use super::*;
+        #[cfg(feature = "chumsky")]
+        use pretty_assertions::assert_eq;
 
         // Test cases for 'SUP'
         #[cfg(feature = "chumsky")]
@@ -2028,7 +2040,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                err_string.contains(
+                    "Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
             );
         }
@@ -2092,7 +2106,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -2113,7 +2128,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -2276,7 +2292,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                err_string.contains(
+                    "Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
             );
         }
@@ -2361,7 +2379,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"),
+                err_string.contains(
+                    "Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')'"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected 'N', 'S', 'D', 'A', 'M', 'O', ')''",
             );
         }
@@ -2451,7 +2471,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -2472,7 +2493,8 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected token while parsing [], expected single-quoted string"),
+                err_string
+                    .contains("Unexpected token while parsing [], expected single-quoted string"),
                 "Error string '{err_string}' does not contain 'Unexpected token while parsing [], expected single-quoted string'",
             );
         }
@@ -2516,7 +2538,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                err_string.contains(
+                    "Unexpected end of input while parsing [], expected OID with optional length"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
             );
         }
@@ -2537,7 +2561,9 @@ mod test {
                 }
             );
             assert!(
-                err_string.contains("Unexpected end of input while parsing [], expected OID with optional length"),
+                err_string.contains(
+                    "Unexpected end of input while parsing [], expected OID with optional length"
+                ),
                 "Error string '{err_string}' does not contain 'Unexpected end of input while parsing [], expected OID with optional length'",
             );
         }

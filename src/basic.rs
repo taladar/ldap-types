@@ -18,7 +18,7 @@ use ariadne::{Color, Fmt as _, Label, Report, ReportKind, Source};
 
 #[cfg(feature = "serde")]
 use serde::{
-    de::SeqAccess, ser::SerializeSeq as _, Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer, de::SeqAccess, ser::SerializeSeq as _,
 };
 
 #[cfg(feature = "diff")]
@@ -197,8 +197,8 @@ impl std::fmt::Debug for RootDSE {
 /// chumsky parser for [oid::ObjectIdentifier]
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn oid_parser<'src>(
-) -> impl Parser<'src, &'src str, ObjectIdentifier, extra::Err<Rich<'src, char>>> {
+pub fn oid_parser<'src>()
+-> impl Parser<'src, &'src str, ObjectIdentifier, extra::Err<Rich<'src, char>>> {
     digits(10)
         .collect::<String>()
         .separated_by(just('.'))
@@ -277,8 +277,8 @@ impl TryFrom<&KeyStringOrOID> for KeyString {
 
 /// parses a [KeyString]
 #[cfg(feature = "chumsky")]
-pub fn keystring_parser<'src>(
-) -> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
+pub fn keystring_parser<'src>()
+-> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
     any()
         .filter(|c: &char| c.is_ascii_alphabetic())
         .then(
@@ -294,8 +294,8 @@ pub fn keystring_parser<'src>(
 /// parses a [KeyString] in locations where it is single-quoted
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn quoted_keystring_parser<'src>(
-) -> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
+pub fn quoted_keystring_parser<'src>()
+-> impl Parser<'src, &'src str, KeyString, extra::Err<Rich<'src, char>>> {
     keystring_parser().delimited_by(just('\''), just('\''))
 }
 
@@ -471,8 +471,8 @@ impl TryFrom<&KeyStringOrOID> for ObjectIdentifier {
 
 /// parses either a [KeyString] or an [ObjectIdentifier]
 #[cfg(feature = "chumsky")]
-pub fn keystring_or_oid_parser<'src>(
-) -> impl Parser<'src, &'src str, KeyStringOrOID, extra::Err<Rich<'src, char>>> {
+pub fn keystring_or_oid_parser<'src>()
+-> impl Parser<'src, &'src str, KeyStringOrOID, extra::Err<Rich<'src, char>>> {
     keystring_parser()
         .map(KeyStringOrOID::KeyString)
         .or(oid_parser().map(KeyStringOrOID::OID))
@@ -653,7 +653,10 @@ where
         type Value = Vec<(KeyStringOrOID, StringOrBytes)>;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(formatter, "an array of tuples of attribute name and attribute value (either a string or a sequence of integers)")
+            write!(
+                formatter,
+                "an array of tuples of attribute name and attribute value (either a string or a sequence of integers)"
+            )
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -706,16 +709,16 @@ pub fn hex_byte_parser<'src>() -> impl Parser<'src, &'src str, u8, extra::Err<Ri
 /// parses a hex-encoded binary attribute value in an RDN
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn rdn_attribute_binary_value_parser<'src>(
-) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
+pub fn rdn_attribute_binary_value_parser<'src>()
+-> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
     just('#').ignore_then(hex_byte_parser().repeated().collect())
 }
 
 /// parses a plain string attribute value in an RDN
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn rdn_attribute_string_value_parser<'src>(
-) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
+pub fn rdn_attribute_string_value_parser<'src>()
+-> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
     none_of(",+\"\\<>;")
         .or(just('\\').ignore_then(one_of(" ,+\"\\<>;")))
         .or(just('\\').ignore_then(hex_byte_parser().map(char::from)))
@@ -727,16 +730,16 @@ pub fn rdn_attribute_string_value_parser<'src>(
 /// parses either a binary or a plain attribute value in an RDN
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn rdn_attribute_value_parser<'src>(
-) -> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
+pub fn rdn_attribute_value_parser<'src>()
+-> impl Parser<'src, &'src str, Vec<u8>, extra::Err<Rich<'src, char>>> {
     rdn_attribute_binary_value_parser().or(rdn_attribute_string_value_parser())
 }
 
 /// parses a [RelativeDistinguishedName]
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn rdn_parser<'src>(
-) -> impl Parser<'src, &'src str, RelativeDistinguishedName, extra::Err<Rich<'src, char>>> {
+pub fn rdn_parser<'src>()
+-> impl Parser<'src, &'src str, RelativeDistinguishedName, extra::Err<Rich<'src, char>>> {
     keystring_or_oid_parser()
         .then(just('=').ignore_then(rdn_attribute_value_parser()))
         .separated_by(just('+'))
@@ -928,8 +931,8 @@ impl Ord for DistinguishedName {
 /// parses a [DistinguishedName]
 #[cfg(feature = "chumsky")]
 #[must_use]
-pub fn dn_parser<'src>(
-) -> impl Parser<'src, &'src str, DistinguishedName, extra::Err<Rich<'src, char>>> {
+pub fn dn_parser<'src>()
+-> impl Parser<'src, &'src str, DistinguishedName, extra::Err<Rich<'src, char>>> {
     rdn_parser()
         .separated_by(just(','))
         .collect()
@@ -1365,7 +1368,9 @@ mod test {
                 ],
             }],
         };
-        let result : DistinguishedName = serde_json::from_str("{\"rdns\":[{\"attributes\":[[{\"key_string\":\"cn\"},\"Foo,bar\"],[{\"key_string\":\"uid\"},\"foobar\"]]}]}")?;
+        let result: DistinguishedName = serde_json::from_str(
+            "{\"rdns\":[{\"attributes\":[[{\"key_string\":\"cn\"},\"Foo,bar\"],[{\"key_string\":\"uid\"},\"foobar\"]]}]}",
+        )?;
         assert_eq!(result, expected);
         Ok(())
     }
