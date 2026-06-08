@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.3 - 2026-06-08 12:17:42Z
+
+### ⚙️ Miscellaneous Tasks
+
+- Update repository to latest cargo-generate template standards
+- *(template)* Sync release.sh and add Cross.toml from template
+- *(dependencies)* Update dependencies
+
 ## 0.7.2 - 2026-02-09 14:59:52Z
 
 ### ⚙️ Miscellaneous Tasks
