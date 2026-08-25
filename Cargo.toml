@@ -14,14 +14,18 @@ keywords = ["filter", "ldap", "schema"]
 categories = ["data-structures", "parsing"]
 exclude = [".env", "tarpaulin-report.html", "tarpaulin-report.json"]
 
+[package.metadata.cargo-machete]
+ignored = ["diff-struct"]
+
 [features]
 default = ["chumsky", "diff", "ldap3", "serde"]
 chumsky = ["dep:ariadne", "dep:chumsky"]
-diff = ["dep:diff-struct"]
+diff = []
 ldap3 = ["dep:ldap3"]
 serde = ["dep:serde", "oid/serde"]
 
 [dependencies]
+diff-struct = "0.5.3"
 [dependencies.ariadne]
 version = "0.6.0"
 optional = true
@@ -30,12 +34,8 @@ optional = true
 version = "0.13.0"
 optional = true
 
-[dependencies.diff-struct]
-version = "0.5.3"
-optional = true
-
 [dependencies.educe]
-version = "0.6.0"
+version = "0.7.6"
 default-features = false
 features = ["Eq", "Hash", "PartialEq"]
 
@@ -46,7 +46,7 @@ version = "0.7.0"
 version = "0.4.3"
 
 [dependencies.itertools]
-version = "0.14.0"
+version = "0.15.0"
 
 [dependencies.ldap3]
 version = "0.12.1"
@@ -57,7 +57,7 @@ optional = true
 version = "0.3.0"
 
 [dependencies.serde]
-version = "1.0.228"
+version = "1.0.229"
 features = ["derive"]
 optional = true
 
@@ -65,7 +65,7 @@ optional = true
 version = "1.4.1"
 
 [dev-dependencies.serde_json]
-version = "1.0.150"
+version = "1.0.151"
 
 [lints.clippy]
 allow_attributes = "deny"
