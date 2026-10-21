@@ -35,7 +35,7 @@ version = "0.13.0"
 optional = true
 
 [dependencies.educe]
-version = "0.7.6"
+version = "0.8.1"
 default-features = false
 features = ["Eq", "Hash", "PartialEq"]
 
@@ -65,7 +65,7 @@ optional = true
 version = "1.4.1"
 
 [dev-dependencies.serde_json]
-version = "1.0.151"
+version = "1.0.154"
 
 [lints.clippy]
 allow_attributes = "deny"
