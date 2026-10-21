@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.5 - 2026-10-21 10:16:08Z
+
+### 🐛 Bug Fixes
+
+- *(clippy)* Move shared Ok(()) out of match arms in Display impls
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dependencies)* Update dependencies
+
 ## 0.7.4 - 2026-08-25 11:12:35Z
 
 ### ⚙️ Miscellaneous Tasks
