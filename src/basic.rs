@@ -345,14 +345,13 @@ impl std::fmt::Display for KeyStringOrOID {
         match &self {
             Self::KeyString(s) => {
                 std::fmt::Display::fmt(s, f)?;
-                Ok(())
             }
             Self::OID(oid) => {
                 let string_oid: String = oid.clone().into();
                 std::fmt::Display::fmt(&string_oid, f)?;
-                Ok(())
             }
         }
+        Ok(())
     }
 }
 

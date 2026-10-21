@@ -261,7 +261,6 @@ impl std::fmt::Display for LDAPSearchFilter {
                     std::fmt::Display::fmt(&filter, f)?;
                 }
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Or(filters) => {
                 write!(f, "(|")?;
@@ -269,13 +268,11 @@ impl std::fmt::Display for LDAPSearchFilter {
                     std::fmt::Display::fmt(&filter, f)?;
                 }
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Not(filter) => {
                 write!(f, "(!")?;
                 std::fmt::Display::fmt(&filter, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Equal {
                 attribute_name,
@@ -286,7 +283,6 @@ impl std::fmt::Display for LDAPSearchFilter {
                 write!(f, "=")?;
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Approx {
                 attribute_name,
@@ -297,7 +293,6 @@ impl std::fmt::Display for LDAPSearchFilter {
                 write!(f, "=~")?;
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Greater {
                 attribute_name,
@@ -308,7 +303,6 @@ impl std::fmt::Display for LDAPSearchFilter {
                 write!(f, ">=")?;
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Less {
                 attribute_name,
@@ -319,13 +313,11 @@ impl std::fmt::Display for LDAPSearchFilter {
                 write!(f, "<=")?;
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
             Self::Present { attribute_name } => {
                 write!(f, "(")?;
                 std::fmt::Display::fmt(&attribute_name, f)?;
                 write!(f, "=*)")?;
-                Ok(())
             }
             Self::Substring {
                 attribute_name,
@@ -337,9 +329,9 @@ impl std::fmt::Display for LDAPSearchFilter {
                 // here value can contain wildcards, unlike the very similar looking equality above
                 std::fmt::Display::fmt(&attribute_value, f)?;
                 write!(f, ")")?;
-                Ok(())
             }
         }
+        Ok(())
     }
 }
 
