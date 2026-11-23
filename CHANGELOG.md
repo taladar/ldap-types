@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 - 2026-11-23 09:30:24Z
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dependencies)* Update dependencies
+
 ## 0.8.0 - 2026-11-16 15:16:03Z
 
 ### ⚙️ Miscellaneous Tasks
