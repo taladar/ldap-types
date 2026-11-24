@@ -1029,33 +1029,55 @@ pub enum LDAPOperation {
 
 #[cfg(feature = "ldap3")]
 impl LDAPOperation {
-    /// Used to order operations so parents are added first and children deleted first
+    /// the DN of the entry this operation applies to
+    #[must_use]
+    pub fn dn(&self) -> &str {
+        match self {
+            Self::Add(LDAPEntry { dn, .. }) | Self::Delete { dn } | Self::Modify { dn, .. } => dn,
+        }
+    }
+
+    /// rank of the operation kind in the order operations are applied
+    ///
+    /// deletes come first so values that are unique in the destination
+    /// (e.g. through the OpenLDAP unique overlay) are freed before an add
+    /// or modify needs them, adds come last
+    const fn kind_rank(&self) -> u8 {
+        match self {
+            Self::Delete { .. } => 0,
+            Self::Modify { .. } => 1,
+            Self::Add(_) => 2,
+        }
+    }
+
+    /// Used to order operations so all deletes are applied before all
+    /// modifies and those before all adds, children are deleted before
+    /// their parents and parents are added before their children
+    ///
+    /// This is a total order, it always returns `Some`. Operations whose DN
+    /// does not parse are ordered after those whose DN does within the same
+    /// kind of operation and among each other by their DN string.
     #[cfg(feature = "chumsky")]
     #[must_use]
     pub fn operation_apply_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Self::Add(entry1 @ LDAPEntry { .. }), Self::Add(entry2 @ LDAPEntry { .. })) => {
-                let parsed_dn1: Result<DistinguishedName, _> =
-                    dn_parser().parse(&entry1.dn).into_result();
-                let parsed_dn2: Result<DistinguishedName, _> =
-                    dn_parser().parse(&entry2.dn).into_result();
-                if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
-                    Some(parsed_dn1.cmp(&parsed_dn2))
-                } else {
-                    None
+        let dn_cmp = || {
+            let parsed_dn1 = dn_parser().parse(self.dn()).into_result();
+            let parsed_dn2 = dn_parser().parse(other.dn()).into_result();
+            match (parsed_dn1, parsed_dn2) {
+                (Ok(parsed_dn1), Ok(parsed_dn2)) => {
+                    let ordering = parsed_dn1.cmp(&parsed_dn2);
+                    if matches!(self, Self::Delete { .. }) {
+                        ordering.reverse()
+                    } else {
+                        ordering
+                    }
                 }
+                (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+                (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+                (Err(_), Err(_)) => self.dn().cmp(other.dn()),
             }
-            (Self::Delete { dn: dn1 }, Self::Delete { dn: dn2 }) => {
-                let parsed_dn1: Result<DistinguishedName, _> = dn_parser().parse(dn1).into_result();
-                let parsed_dn2: Result<DistinguishedName, _> = dn_parser().parse(dn2).into_result();
-                if let (Ok(parsed_dn1), Ok(parsed_dn2)) = (parsed_dn1, parsed_dn2) {
-                    Some(parsed_dn1.cmp(&parsed_dn2))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
+        };
+        Some(self.kind_rank().cmp(&other.kind_rank()).then_with(dn_cmp))
     }
 }
 
@@ -1348,6 +1370,57 @@ mod test {
             "{\"rdns\":[{\"attributes\":[[{\"key_string\":\"cn\"},\"Foo,bar\"],[{\"key_string\":\"uid\"},\"foobar\"]]}]}".to_string()
         );
         Ok(())
+    }
+
+    #[cfg(all(feature = "chumsky", feature = "ldap3"))]
+    #[test]
+    fn test_operation_apply_order() {
+        let add = |dn: &str| {
+            LDAPOperation::Add(LDAPEntry {
+                dn: dn.to_string(),
+                attrs: HashMap::new(),
+                bin_attrs: HashMap::new(),
+            })
+        };
+        let delete = |dn: &str| LDAPOperation::Delete { dn: dn.to_string() };
+        let modify = |dn: &str| LDAPOperation::Modify {
+            dn: dn.to_string(),
+            mods: vec![],
+            bin_mods: vec![],
+        };
+        let mut operations = [
+            add("ou=sshkeys,uid=new,ou=accounts"),
+            modify("uid=other,ou=accounts"),
+            delete("uid=old,ou=accounts"),
+            add("uid=new,ou=accounts"),
+            delete("ou=sshkeys,uid=old,ou=accounts"),
+            add("not a dn"),
+            delete("also not a dn"),
+        ];
+        operations.sort_by(|a, b| {
+            a.operation_apply_cmp(b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        assert_eq!(
+            operations
+                .iter()
+                .map(|operation| match operation {
+                    LDAPOperation::Add(_) => format!("add {}", operation.dn()),
+                    LDAPOperation::Delete { .. } => format!("delete {}", operation.dn()),
+                    LDAPOperation::Modify { .. } => format!("modify {}", operation.dn()),
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                "delete ou=sshkeys,uid=old,ou=accounts",
+                "delete uid=old,ou=accounts",
+                "delete also not a dn",
+                "modify uid=other,ou=accounts",
+                "add uid=new,ou=accounts",
+                "add ou=sshkeys,uid=new,ou=accounts",
+                "add not a dn",
+            ],
+            "deletes (children first) before modifies before adds (parents first)"
+        );
     }
 
     #[cfg(feature = "serde")]
