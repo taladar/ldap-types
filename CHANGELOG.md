@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2 - 2026-11-24 09:17:13Z
+
+### 🐛 Bug Fixes
+
+- Make LDAPOperation::operation_apply_cmp a total order
+
 ## 0.8.1 - 2026-11-23 09:30:24Z
 
 ### ⚙️ Miscellaneous Tasks
